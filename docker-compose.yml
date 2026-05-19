@@ -1,0 +1,15 @@
+services:
+  db:
+    image: postgres:16
+    container_name: chatapp-postgres
+    environment:
+      POSTGRES_DB: chatapp_db
+      POSTGRES_USER: localuser
+      POSTGRES_PASSWORD: localpassword
+    ports:
+      - "5432:5432"
+    volumes:
+      - chatapp_pgdata:/var/lib/postgresql/data
+
+volumes:
+  chatapp_pgdata:
