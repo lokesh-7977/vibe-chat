@@ -3,7 +3,7 @@ from datetime import datetime
 
 from sqlalchemy import Boolean, DateTime, String, func
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
 
@@ -68,3 +68,8 @@ class User(Base):
         onupdate=func.now(),
         nullable=False,
     )
+
+    owned_workspaces = relationship("Workspace", back_populates="owner")
+    workspace_memberships = relationship("WorkspaceMember", back_populates="user")
+    channel_memberships = relationship("ChannelMember", back_populates="user")
+    activities = relationship("Activity", back_populates="actor")
