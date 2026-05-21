@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter
 
 from app.core.config import get_settings
-from app.schemas.health import HealthResponse
+from app.db.schemas.health import HealthResponse
 
 router = APIRouter()
 
