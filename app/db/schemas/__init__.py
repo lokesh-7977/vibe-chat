@@ -1,5 +1,5 @@
-from app.schemas.auth import AuthTokensResponse, RefreshTokenResponse
-from app.schemas.ai import (
+from app.db.schemas.auth import AuthTokensResponse, RefreshTokenResponse
+from app.db.schemas.ai import (
     AIInteractionCreate,
     AIInteractionResponse,
     AIInteractionUpdate,
@@ -10,8 +10,8 @@ from app.schemas.ai import (
     AIRunStepUpdate,
     AIRunUpdate,
 )
-from app.schemas.activity import ActivityCreate, ActivityResponse, ActivityUpdate
-from app.schemas.call import (
+from app.db.schemas.activity import ActivityCreate, ActivityResponse, ActivityUpdate
+from app.db.schemas.call import (
     CallCreate,
     CallParticipantCreate,
     CallParticipantResponse,
@@ -25,14 +25,14 @@ from app.schemas.call import (
     CallTranscriptUpdate,
     CallUpdate,
 )
-from app.schemas.channel import ChannelCreate, ChannelResponse, ChannelUpdate
-from app.schemas.channel_member import ChannelMemberCreate, ChannelMemberResponse, ChannelMemberUpdate
-from app.schemas.health import HealthResponse
-from app.schemas.memory import ContextualMemoryCreate, ContextualMemoryResponse, ContextualMemoryUpdate
-from app.schemas.decision import DecisionCreate, DecisionResponse, DecisionUpdate
-from app.schemas.document import DocumentCreate, DocumentResponse, DocumentUpdate
-from app.schemas.document_chunk import DocumentChunkCreate, DocumentChunkResponse, DocumentChunkUpdate
-from app.schemas.embeddings import (
+from app.db.schemas.channel import ChannelCreate, ChannelResponse, ChannelUpdate
+from app.db.schemas.channel_member import ChannelMemberCreate, ChannelMemberResponse, ChannelMemberUpdate
+from app.db.schemas.health import HealthResponse
+from app.db.schemas.memory import ContextualMemoryCreate, ContextualMemoryResponse, ContextualMemoryUpdate
+from app.db.schemas.decision import DecisionCreate, DecisionResponse, DecisionUpdate
+from app.db.schemas.document import DocumentCreate, DocumentResponse, DocumentUpdate
+from app.db.schemas.document_chunk import DocumentChunkCreate, DocumentChunkResponse, DocumentChunkUpdate
+from app.db.schemas.embeddings import (
     ActivityEmbeddingCreate,
     ActivityEmbeddingResponse,
     ActivityEmbeddingUpdate,
@@ -40,10 +40,10 @@ from app.schemas.embeddings import (
     DocumentEmbeddingResponse,
     DocumentEmbeddingUpdate,
 )
-from app.schemas.task import TaskCreate, TaskResponse, TaskUpdate
-from app.schemas.user import UserCreate, UserLogin, UserResponse
-from app.schemas.workspace import WorkspaceCreate, WorkspaceResponse, WorkspaceUpdate
-from app.schemas.workspace_member import WorkspaceMemberCreate, WorkspaceMemberResponse, WorkspaceMemberUpdate
+from app.db.schemas.task import TaskCreate, TaskResponse, TaskUpdate
+from app.db.schemas.user import UserCreate, UserLogin, UserResponse
+from app.db.schemas.workspace import WorkspaceCreate, WorkspaceResponse, WorkspaceUpdate
+from app.db.schemas.workspace_member import WorkspaceMemberCreate, WorkspaceMemberResponse, WorkspaceMemberUpdate
 
 __all__ = [
     "AuthTokensResponse",
