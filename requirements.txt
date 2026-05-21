@@ -6,6 +6,7 @@ alembic
 bcrypt<5
 passlib[bcrypt]
 email-validator
+itsdangerous
 pgvector
 python-dotenv
 pydantic
