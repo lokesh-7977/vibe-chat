@@ -4,6 +4,7 @@ from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.db.models.channel import Channel
+from app.db.models.channel_member import ChannelMember
 from app.db.models.user import User
 from app.db.models.workspace import Workspace
 from app.db.models.workspace_member import WorkspaceMember
@@ -65,6 +66,16 @@ class WorkspaceService:
             created_by_id=current_user.id,
         )
         self.channel_repository.create(default_channel)
+        self.db.flush()
+
+        # Ensure workspace owner is also a channel member for the default channel.
+        self.db.add(
+            ChannelMember(
+                channel_id=default_channel.id,
+                user_id=current_user.id,
+                role="owner",
+            )
+        )
 
         try:
             self.db.commit()

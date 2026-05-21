@@ -19,6 +19,13 @@ class ActivityCreate(ActivityBase):
     pass
 
 
+class ActivityCreateRequest(BaseModel):
+    content: str
+    activity_type: str = "chat_message"
+    meta_data: dict[str, Any] | None = None
+    parent_activity_id: UUID | None = None
+
+
 class ActivityUpdate(BaseModel):
     content: str | None = None
     meta_data: dict[str, Any] | None = None
@@ -31,4 +38,3 @@ class ActivityResponse(ActivityBase):
     created_at: datetime
     updated_at: datetime
     deleted_at: datetime | None = None
-
