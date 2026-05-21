@@ -73,3 +73,4 @@ class User(Base):
     workspace_memberships = relationship("WorkspaceMember", back_populates="user")
     channel_memberships = relationship("ChannelMember", back_populates="user")
     activities = relationship("Activity", back_populates="actor")
+    ai_interactions = relationship("AIInteraction", back_populates="user")
