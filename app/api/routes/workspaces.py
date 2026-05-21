@@ -22,6 +22,32 @@ def create_workspace(
 ):
     return controller.create_workspace(current_user=current_user, payload=payload)
 
+@router.get(
+    "",
+    response_model=ApiResponse[list[WorkspaceResponse]],
+    status_code=status.HTTP_200_OK,
+)
+def list_workspaces(
+    _request: Request,
+    current_user: CurrentUserDep,
+    controller: WorkspaceControllerDep,
+):
+    return controller.list_workspaces(current_user=current_user)
+
+
+@router.get(
+    "/{workspace_id}",
+    response_model=ApiResponse[WorkspaceResponse],
+    status_code=status.HTTP_200_OK,
+)
+def get_workspace(
+    workspace_id: UUID,
+    _request: Request,
+    current_user: CurrentUserDep,
+    controller: WorkspaceControllerDep,
+):
+    return controller.get_workspace(current_user=current_user, workspace_id=workspace_id)
+
 
 @router.patch(
     "/{workspace_id}",

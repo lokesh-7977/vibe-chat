@@ -18,6 +18,19 @@ class WorkspaceController:
             payload=payload,
         )
 
+    def list_workspaces(self, current_user: User) -> ApiResponse[list[WorkspaceResponse]]:
+        return self.workspace_service.list_workspaces(current_user=current_user)
+
+    def get_workspace(
+        self,
+        current_user: User,
+        workspace_id,
+    ) -> ApiResponse[WorkspaceResponse]:
+        return self.workspace_service.get_workspace(
+            current_user=current_user,
+            workspace_id=workspace_id,
+        )
+
     def update_workspace(
         self,
         current_user: User,

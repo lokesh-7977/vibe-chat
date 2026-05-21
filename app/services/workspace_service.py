@@ -82,6 +82,40 @@ class WorkspaceService:
             data=WorkspaceResponse.model_validate(workspace),
         )
 
+    def list_workspaces(self, current_user: User) -> ApiResponse[list[WorkspaceResponse]]:
+        workspaces = self.workspace_repository.list_for_user(current_user.id)
+        return ApiResponse(
+            success=True,
+            message="Workspaces retrieved successfully",
+            data=[WorkspaceResponse.model_validate(ws) for ws in workspaces],
+        )
+
+    def get_workspace(
+        self,
+        current_user: User,
+        workspace_id,
+    ) -> ApiResponse[WorkspaceResponse]:
+        workspace = self.workspace_repository.get_by_id(workspace_id)
+        if not workspace:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Workspace not found",
+            )
+
+        # Basic access: must be a member (owner membership is created at workspace creation).
+        allowed = any(m.user_id == current_user.id for m in getattr(workspace, "members", []))
+        if not allowed and workspace.owner_id != current_user.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You do not have access to this workspace",
+            )
+
+        return ApiResponse(
+            success=True,
+            message="Workspace retrieved successfully",
+            data=WorkspaceResponse.model_validate(workspace),
+        )
+
     def update_workspace(
         self,
         current_user: User,
