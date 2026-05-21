@@ -162,7 +162,7 @@ def upgrade() -> None:
     sa.Column('activity_id', sa.UUID(), nullable=False),
     sa.Column('workspace_id', sa.UUID(), nullable=False),
     sa.Column('channel_id', sa.UUID(), nullable=True),
-    sa.Column('embedding', pgvector.sqlalchemy.vector.VECTOR(dim=1536), nullable=False),
+    sa.Column('embedding', Vector(dim=1536), nullable=False),
     sa.Column('embedding_model', sa.String(length=100), nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.ForeignKeyConstraint(['activity_id'], ['activities.id'], ondelete='CASCADE'),
