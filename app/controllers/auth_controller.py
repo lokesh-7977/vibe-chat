@@ -1,8 +1,8 @@
 from fastapi import Request
 
-from app.schemas.auth import AuthTokensResponse, RefreshTokenResponse
-from app.schemas.common import ApiResponse
-from app.schemas.user import UserCreate, UserLogin, UserResponse
+from app.db.schemas.auth import AuthTokensResponse, RefreshTokenResponse
+from app.db.schemas.common import ApiResponse
+from app.db.schemas.user import UserCreate, UserLogin, UserResponse
 from app.services.auth_service import AuthService
 
 

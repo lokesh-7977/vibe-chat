@@ -6,7 +6,7 @@ from fastapi import Request, status
 from fastapi.responses import JSONResponse, Response
 from starlette.middleware.base import BaseHTTPMiddleware
 
-from app.schemas.common import ApiResponse
+from app.db.schemas.common import ApiResponse
 
 
 class InMemoryRateLimiter:

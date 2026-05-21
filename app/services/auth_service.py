@@ -4,9 +4,9 @@ from fastapi import HTTPException, Request, status
 
 from app.core.security import hash_password, verify_password
 from app.repositories.user_repository import UserRepository
-from app.schemas.auth import AuthTokensResponse, RefreshTokenResponse
-from app.schemas.common import ApiResponse
-from app.schemas.user import UserCreate, UserLogin, UserResponse
+from app.db.schemas.auth import AuthTokensResponse, RefreshTokenResponse
+from app.db.schemas.common import ApiResponse
+from app.db.schemas.user import UserCreate, UserLogin, UserResponse
 from app.utils.create_access_token import create_access_token
 from app.utils.create_refresh_token import create_refresh_token
 from app.utils.generate_username import generate_username
