@@ -1,6 +1,6 @@
 from app.db.models.user import User
 from app.db.schemas.common import ApiResponse
-from app.db.schemas.workspace import WorkspaceCreate, WorkspaceResponse
+from app.db.schemas.workspace import WorkspaceCreate, WorkspaceResponse, WorkspaceUpdate
 from app.services.workspace_service import WorkspaceService
 
 
@@ -18,3 +18,24 @@ class WorkspaceController:
             payload=payload,
         )
 
+    def update_workspace(
+        self,
+        current_user: User,
+        workspace_id,
+        payload: WorkspaceUpdate,
+    ) -> ApiResponse[WorkspaceResponse]:
+        return self.workspace_service.update_workspace(
+            current_user=current_user,
+            workspace_id=workspace_id,
+            payload=payload,
+        )
+
+    def delete_workspace(
+        self,
+        current_user: User,
+        workspace_id,
+    ) -> ApiResponse[None]:
+        return self.workspace_service.delete_workspace(
+            current_user=current_user,
+            workspace_id=workspace_id,
+        )

@@ -8,7 +8,7 @@ from app.db.models.user import User
 from app.db.models.workspace import Workspace
 from app.db.models.workspace_member import WorkspaceMember
 from app.db.schemas.common import ApiResponse
-from app.db.schemas.workspace import WorkspaceCreate, WorkspaceResponse
+from app.db.schemas.workspace import WorkspaceCreate, WorkspaceResponse, WorkspaceUpdate
 from app.repositories.channel_repository import ChannelRepository
 from app.repositories.workspace_member_repository import WorkspaceMemberRepository
 from app.repositories.workspace_repository import WorkspaceRepository
@@ -82,3 +82,76 @@ class WorkspaceService:
             data=WorkspaceResponse.model_validate(workspace),
         )
 
+    def update_workspace(
+        self,
+        current_user: User,
+        workspace_id,
+        payload: WorkspaceUpdate,
+    ) -> ApiResponse[WorkspaceResponse]:
+        workspace = self.workspace_repository.get_by_id(workspace_id)
+        if not workspace:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Workspace not found",
+            )
+
+        if workspace.owner_id != current_user.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only the workspace owner can update this workspace",
+            )
+
+        if payload.name is not None:
+            workspace.name = payload.name
+        if payload.description is not None:
+            workspace.description = payload.description
+
+        try:
+            self.db.commit()
+        except Exception as exc:
+            self.db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Unable to update workspace",
+            ) from exc
+
+        self.db.refresh(workspace)
+        return ApiResponse(
+            success=True,
+            message="Workspace updated successfully",
+            data=WorkspaceResponse.model_validate(workspace),
+        )
+
+    def delete_workspace(
+        self,
+        current_user: User,
+        workspace_id,
+    ) -> ApiResponse[None]:
+        workspace = self.workspace_repository.get_by_id(workspace_id)
+        if not workspace:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Workspace not found",
+            )
+
+        if workspace.owner_id != current_user.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only the workspace owner can delete this workspace",
+            )
+
+        self.workspace_repository.delete(workspace)
+        try:
+            self.db.commit()
+        except Exception as exc:
+            self.db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Unable to delete workspace",
+            ) from exc
+
+        return ApiResponse(
+            success=True,
+            message="Workspace deleted successfully",
+            data=None,
+        )
