@@ -3,10 +3,10 @@ uvicorn
 sqlalchemy
 psycopg2
 alembic
-passlib[bcrypt]
 bcrypt<5
+passlib[bcrypt]
 email-validator
 pgvector
 python-dotenv
-
-
+pydantic
+pydantic-settings
