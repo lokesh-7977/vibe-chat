@@ -10,7 +10,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from app.api.router import api_router, public_router
 from app.core.config import get_settings
 from app.core.rate_limiter import RateLimitMiddleware
-from app.schemas.common import ApiResponse
+from app.db.schemas.common import ApiResponse
 
 logger = logging.getLogger(__name__)
 
