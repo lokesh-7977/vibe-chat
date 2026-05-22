@@ -7,7 +7,7 @@ from youtube_transcript_api import YouTubeTranscriptApi
 
 def _extract_video_id(url: str) -> str:
     # supports youtu.be/<id> or youtube.com/watch?v=<id>
-    m = re.search(r"youtu\\.be/([A-Za-z0-9_-]{6,})", url)
+    m = re.search(r"youtu\.be/([A-Za-z0-9_-]{6,})", url)
     if m:
         return m.group(1)
     m = re.search(r"v=([A-Za-z0-9_-]{6,})", url)
