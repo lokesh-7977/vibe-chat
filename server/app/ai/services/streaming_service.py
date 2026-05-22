@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import json
 from collections.abc import AsyncGenerator, AsyncIterable
-from dataclasses import dataclass
 from typing import Any, Literal
+
+from fastapi.encoders import jsonable_encoder
+from pydantic import BaseModel, Field
 
 
 SseEventName = Literal[
@@ -18,13 +20,18 @@ SseEventName = Literal[
 ]
 
 
+class SseEnvelope(BaseModel):
+    event: SseEventName
+    data: dict[str, Any] = Field(default_factory=dict)
+
+
 def sse(event: SseEventName, data: dict[str, Any]) -> bytes:
-    payload = json.dumps(data, ensure_ascii=False)
-    return f"event: {event}\ndata: {payload}\n\n".encode("utf-8")
+    envelope = SseEnvelope(event=event, data=data)
+    payload = json.dumps(jsonable_encoder(envelope.data), ensure_ascii=False)
+    return f"event: {envelope.event}\ndata: {payload}\n\n".encode("utf-8")
 
 
-@dataclass
-class StreamingCollector:
+class StreamingCollector(BaseModel):
     full_text: str = ""
 
     def add_token(self, token: str) -> None:
@@ -38,4 +45,3 @@ async def stream_tokens_as_sse(
     async for token in token_stream:
         collector.add_token(token)
         yield sse("token", {"content": token})
-
