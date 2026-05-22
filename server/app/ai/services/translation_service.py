@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import AsyncGenerator
 
 from app.ai.services.groq_client import GroqChatService
+from app.ai.prompts.translation.prompt import build_translation_prompt
 
 
 class TranslationService:
@@ -14,12 +15,8 @@ class TranslationService:
         *,
         text: str,
         target_language: str,
+        user_prompt: str | None,
     ) -> AsyncGenerator[str, None]:
-        system = (
-            "You are a professional translator. Preserve meaning, tone, names, and technical terms. "
-            "Do not add commentary. Output only the translation."
-        )
-        user = f"Translate to {target_language}:\n\n{text}"
-        async for token in self.groq.stream_chat(system=system, user=user):
+        prompt = build_translation_prompt(text=text, target_language=target_language, user_prompt=user_prompt)
+        async for token in self.groq.stream_chat(messages=prompt.messages, temperature=0.2):
             yield token
-
