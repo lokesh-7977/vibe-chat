@@ -4,6 +4,7 @@ from collections.abc import AsyncGenerator
 
 from app.ai.services.groq_client import GroqAudioService, GroqChatService
 from app.ai.services.url_fetcher import fetch_bytes_from_url
+from app.ai.prompts.summarization.audio.prompt import build_audio_summary_prompt
 
 
 class AudioSummaryService:
@@ -11,11 +12,9 @@ class AudioSummaryService:
         self.groq_audio = groq_audio
         self.groq_chat = groq_chat
 
-    async def stream_summary_from_url(self, *, url: str) -> AsyncGenerator[str, None]:
+    async def stream_summary_from_url(self, *, url: str, user_prompt: str | None) -> AsyncGenerator[str, None]:
         audio_bytes, content_type = await fetch_bytes_from_url(url)
         transcript = await self.groq_audio.transcribe(audio_bytes=audio_bytes, content_type=content_type)
-        system = "You are a concise assistant. Summarize the audio transcript with key points and action items if any."
-        user = f"Summarize this transcript:\n\nURL: {url}\n\nTranscript:\n{transcript}"
-        async for token in self.groq_chat.stream_chat(system=system, user=user):
+        prompt = build_audio_summary_prompt(url=url, transcript=transcript, user_prompt=user_prompt)
+        async for token in self.groq_chat.stream_chat(messages=prompt.messages, temperature=0.2):
             yield token
-
