@@ -19,6 +19,18 @@ class GroqChatService:
         self._model = settings.groq_chat_model
 
     @staticmethod
+    def _serialize_messages(messages: list[ChatMessage]) -> list[dict]:
+        serialized = []
+        for m in messages:
+            base = {"role": m.role, "content": m.content}
+            if m.tool_call_id:
+                base["tool_call_id"] = m.tool_call_id
+            if m.tool_calls:
+                base["tool_calls"] = m.tool_calls
+            serialized.append(base)
+        return serialized
+
+    @staticmethod
     def _clamp_temperature(temp: float | None) -> float:
         # Always keep temperature in [0.1, 0.3] to reduce hallucinations.
         if temp is None:
@@ -39,7 +51,7 @@ class GroqChatService:
             try:
                 stream = self._client.chat.completions.create(
                     model=self._model,
-                    messages=[m.model_dump() for m in messages],
+                    messages=self._serialize_messages(messages),
                     temperature=temp,
                     stream=True,
                 )
@@ -67,6 +79,38 @@ class GroqChatService:
             raise err
 
         await producer_task
+
+    async def chat(
+        self,
+        *,
+        messages: list[ChatMessage],
+        tools: list[dict] | None = None,
+        temperature: float | None = None,
+    ) -> dict[str, Any]:
+        temp = self._clamp_temperature(temperature)
+
+        def _call() -> dict[str, Any]:
+            kwargs = dict(
+                model=self._model,
+                messages=self._serialize_messages(messages),
+                temperature=temp,
+            )
+            if tools:
+                kwargs["tools"] = tools
+            response = self._client.chat.completions.create(**kwargs)
+            choice = response.choices[0]
+            msg = choice.message
+            tool_calls = []
+            if msg.tool_calls:
+                for tc in msg.tool_calls:
+                    tool_calls.append({
+                        "id": tc.id,
+                        "type": tc.type,
+                        "function": {"name": tc.function.name, "arguments": tc.function.arguments},
+                    })
+            return {"role": msg.role, "content": msg.content or "", "tool_calls": tool_calls}
+
+        return await asyncio.to_thread(_call)
 
 
 class GroqAudioService:
