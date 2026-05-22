@@ -46,3 +46,4 @@ build/
 .env
 .venv/
 app/db/migrations/versions/
+server/app/db/migrations/versions/
