@@ -15,3 +15,11 @@ pydantic
 pydantic-settings
 pytest
 httpx
+groq
+langchain
+langchain-community
+langgraph
+langchain-text-splitters
+beautifulsoup4
+youtube-transcript-api
+pypdf

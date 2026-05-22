@@ -47,6 +47,16 @@ class Settings(BaseSettings):
 
     cors_allow_origins: list[str] = []
 
+    groq_api_key: str | None = None
+    groq_chat_model: str = "llama-3.1-70b-versatile"
+    groq_whisper_model: str = "whisper-large-v3"
+
+    hf_api_token: str | None = None
+    hf_embeddings_model: str = "sentence-transformers/all-MiniLM-L6-v2"
+
+    rag_top_k: int = 8
+    rag_max_sources_per_type: int = 50
+
     r2_endpoint_url: str | None = None
     r2_access_key_id: str | None = None
     r2_secret_access_key: str | None = None
