@@ -1,12 +1,14 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Request, status
+from fastapi import APIRouter, Query, Request, status
 
 from app.api.dependencies.channel import ChannelControllerDep
+from app.api.dependencies.document import DocumentControllerDep
 from app.api.dependencies.user import CurrentUserDep
 from app.db.schemas.channel import ChannelCreate, ChannelResponse, ChannelUpdate
 from app.db.schemas.channel_member import ChannelMemberCreate, ChannelMemberResponse
 from app.db.schemas.common import ApiResponse
+from app.db.schemas.document import DocumentResponse
 
 router = APIRouter(prefix="/channels", tags=["channels"])
 
@@ -130,4 +132,25 @@ def remove_channel_member(
         current_user=current_user,
         channel_id=channel_id,
         user_id=user_id,
+    )
+
+
+@router.get(
+    "/{channel_id}/documents",
+    response_model=ApiResponse[list[DocumentResponse]],
+    status_code=status.HTTP_200_OK,
+)
+def list_channel_documents(
+    channel_id: UUID,
+    _request: Request,
+    current_user: CurrentUserDep,
+    document_controller: DocumentControllerDep,
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+):
+    return document_controller.list_channel_documents(
+        current_user=current_user,
+        channel_id=channel_id,
+        limit=limit,
+        offset=offset,
     )
