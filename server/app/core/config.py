@@ -1,8 +1,22 @@
-﻿from functools import lru_cache
+from functools import lru_cache
+from pathlib import Path
 from typing import Any
 
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+def _find_env_file() -> str:
+    """
+    Prefer a .env file in the server folder; otherwise fall back to repo root.
+    This allows running from either the repo root or `server/`.
+    """
+    current = Path(__file__).resolve()
+    for parent in current.parents:
+        candidate = parent / ".env"
+        if candidate.exists():
+            return str(candidate)
+    return ".env"
 
 
 class Settings(BaseSettings):
@@ -48,7 +62,7 @@ class Settings(BaseSettings):
     auth_rate_limit_logout_requests: int = 10
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=_find_env_file(),
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore",
