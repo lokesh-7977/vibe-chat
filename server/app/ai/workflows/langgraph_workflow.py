@@ -1,26 +1,21 @@
 from __future__ import annotations
 
-import re
 import time
 from collections.abc import AsyncGenerator
-from typing import Any
 from uuid import UUID
 
 import httpx
-from langgraph.graph import END, START, StateGraph
-from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
+from app.ai.agents.react import run_react_agent_stream
 from app.ai.services.audio_summary_service import AudioSummaryService
 from app.ai.services.groq_client import GroqAudioService, GroqChatService
 from app.ai.services.hf_embeddings import HfEmbeddingsService
-from app.ai.services.intent_classifier_service import IntentClassifierService
 from app.ai.services.rag_service import RagService
-from app.ai.services.streaming_service import StreamingCollector, sse, stream_tokens_as_sse
+from app.ai.services.streaming_service import StreamingCollector, sse
 from app.ai.services.translation_service import TranslationService
 from app.ai.services.website_summary_service import WebsiteSummaryService
 from app.ai.services.youtube_summary_service import YouTubeSummaryService
-from app.ai.types import Intent, RetrievedSource, SourceDocument
 from app.core.config import get_settings
 from app.db.models.activity import Activity
 from app.db.models.ai import AIInteraction, AIRun
@@ -33,43 +28,8 @@ from app.repositories.workspace_repository import WorkspaceRepository
 from app.realtime.connection_manager import realtime_manager
 
 
-_url_re = re.compile(r"https?://\S+", re.I)
-
-
 class WorkflowError(RuntimeError):
     pass
-
-
-class WorkflowState(BaseModel):
-    channel_id: UUID
-    workspace_id: UUID
-    user_id: UUID
-
-    action: str = "auto"
-    message_id: UUID | None = None
-    input: str = ""
-    target_language: str | None = None
-
-    intent: Intent = "unknown"
-    intent_reason: str | None = None
-    intent_confidence: float = Field(default=0.0, ge=0.0, le=1.0)
-    intent_signals: dict[str, Any] = Field(default_factory=dict)
-
-    url: str | None = None
-    selected_message: str | None = None
-    retrieval_status: str | None = None
-
-    rag_sources: list[SourceDocument] = Field(default_factory=list)
-    rag_citations: list[RetrievedSource] = Field(default_factory=list)
-
-
-def _extract_url(text: str) -> str | None:
-    m = _url_re.search(text or "")
-    return m.group(0) if m else None
-
-
-def _merge_state(state: WorkflowState, payload: dict[str, Any]) -> WorkflowState:
-    return WorkflowState.model_validate({**state.model_dump(mode="python"), **payload})
 
 
 def _require_channel_member(db: Session, *, current_user: User, channel_id: UUID) -> Channel:
@@ -92,64 +52,6 @@ def _require_channel_member(db: Session, *, current_user: User, channel_id: UUID
     return channel
 
 
-def build_langgraph(
-    *,
-    db: Session,
-    intent_classifier: IntentClassifierService,
-    rag_service: RagService,
-) -> Any:
-    async def detect_intent_node(state: WorkflowState) -> dict[str, Any]:
-        result = intent_classifier.classify(
-            action=state.action,
-            user_input=state.input,
-            target_language=state.target_language,
-            message_id=str(state.message_id) if state.message_id else None,
-        )
-        return {
-            "intent": result.intent,
-            "intent_reason": result.reason,
-            "intent_confidence": result.confidence,
-            "intent_signals": result.signals,
-        }
-
-    async def load_sources_node(state: WorkflowState) -> dict[str, Any]:
-        selected_message: str | None = None
-        if state.message_id:
-            msg = db.query(Activity).filter(Activity.id == state.message_id).one_or_none()
-            if not msg or msg.channel_id != state.channel_id:
-                raise WorkflowError("Selected message not found in this channel")
-            selected_message = msg.content or ""
-
-        url = _extract_url(state.input) or _extract_url(selected_message or "")
-        return {"selected_message": selected_message, "url": url}
-
-    async def start_retrieval_node(state: WorkflowState) -> dict[str, Any]:
-        if state.intent != "rag_question_answering":
-            return {}
-        return {"retrieval_status": "started"}
-
-    async def retrieve_context_node(state: WorkflowState) -> dict[str, Any]:
-        if state.intent != "rag_question_answering":
-            return {}
-        sources, citations = await rag_service.retrieve(channel_id=state.channel_id, query=state.input)
-        return {
-            "rag_sources": sources,
-            "rag_citations": citations,
-        }
-
-    graph = StateGraph(WorkflowState)
-    graph.add_node("detect_intent", detect_intent_node)
-    graph.add_node("load_sources", load_sources_node)
-    graph.add_node("start_retrieval", start_retrieval_node)
-    graph.add_node("retrieve_context", retrieve_context_node)
-    graph.add_edge(START, "detect_intent")
-    graph.add_edge("detect_intent", "load_sources")
-    graph.add_edge("load_sources", "start_retrieval")
-    graph.add_edge("start_retrieval", "retrieve_context")
-    graph.add_edge("retrieve_context", END)
-    return graph.compile()
-
-
 async def run_ai_action_workflow(
     *,
     db: Session,
@@ -161,12 +63,11 @@ async def run_ai_action_workflow(
     target_language: str | None,
 ) -> AsyncGenerator[bytes, None]:
     """
-    Runs the LangGraph planning steps and then streams generation token-by-token.
+    Runs a ReAct agent that uses tools to handle the user's request.
     """
     started = time.time()
     channel = _require_channel_member(db, current_user=current_user, channel_id=channel_id)
 
-    # Create AI interaction log early.
     interaction_repo = AIInteractionRepository(db)
     interaction = AIInteraction(
         workspace_id=channel.workspace_id,
@@ -178,114 +79,52 @@ async def run_ai_action_workflow(
         model=get_settings().groq_chat_model,
     )
     interaction_repo.create(interaction)
-    run = AIRun(interaction_id=interaction.id, workflow_name="channel_ai_actions", status="running", state=None)
+    run = AIRun(
+        interaction_id=interaction.id,
+        workflow_name="react_agent",
+        status="running",
+        state=None,
+    )
     interaction_repo.create_run(run)
     db.commit()
     db.refresh(interaction)
 
     collector = StreamingCollector()
     async_client = httpx.AsyncClient(timeout=httpx.Timeout(60.0, connect=10.0))
-    state = WorkflowState(
-        channel_id=channel_id,
-        workspace_id=channel.workspace_id,
-        user_id=current_user.id,
-        action=action or "auto",
-        message_id=message_id,
-        input=user_input or "",
-        target_language=target_language,
-    )
 
     try:
         embeddings = HfEmbeddingsService(async_client=async_client)
         groq_chat = GroqChatService()
         groq_audio = GroqAudioService()
 
-        intent_classifier = IntentClassifierService()
         translation = TranslationService(groq_chat)
         yt_summary = YouTubeSummaryService(groq_chat)
         web_summary = WebsiteSummaryService(groq_chat)
         audio_summary = AudioSummaryService(groq_audio, groq_chat)
         rag_service = RagService(db, embeddings=embeddings, groq=groq_chat)
 
-        compiled = build_langgraph(db=db, intent_classifier=intent_classifier, rag_service=rag_service)
+        yield sse("source_loading", {"message": "Starting AI agent"})
 
-        # Stream planning events from LangGraph steps.
-        yield sse("source_loading", {"message": "Starting AI workflow"})
-        async for update in compiled.astream(state, stream_mode="updates"):
-            if "detect_intent" in update:
-                payload = update["detect_intent"]
-                state = _merge_state(state, payload)
-                yield sse(
-                    "intent_detected",
-                    {
-                        "intent": state.intent,
-                        "reason": state.intent_reason,
-                        "confidence": state.intent_confidence,
-                        "signals": state.intent_signals,
-                    },
-                )
-            if "load_sources" in update:
-                payload = update["load_sources"]
-                state = _merge_state(state, payload)
-                yield sse("source_loading", {"message": "Sources loaded", "url": state.url})
-            if "start_retrieval" in update:
-                payload = update["start_retrieval"]
-                state = _merge_state(state, payload)
-                if state.retrieval_status == "started":
-                    yield sse("retrieval_started", {"message": "Retrieval started"})
-            if "retrieve_context" in update:
-                payload = update["retrieve_context"]
-                state = _merge_state(state, payload)
-                yield sse(
-                    "retrieval_completed",
-                    {"sources": [citation.model_dump(mode="json") for citation in state.rag_citations]},
-                )
-
-        # Generation phase (stream tokens).
-        intent: Intent = state.intent
-        yield sse("generation_started", {"message": "Streaming started"})
-
-        if intent == "translate_message":
-            if not state.selected_message:
-                raise WorkflowError("message_id is required for translation")
-            if not state.target_language:
-                raise WorkflowError("target_language is required for translation")
-            token_stream = translation.stream_translation(
-                text=state.selected_message,
-                target_language=state.target_language,
-                user_prompt=state.input,
-            )
-        elif intent == "summarize_youtube":
-            if not state.url:
-                raise WorkflowError("No URL found to summarize")
-            token_stream = yt_summary.stream_summary(url=state.url, user_prompt=state.input)
-        elif intent == "summarize_website":
-            if not state.url:
-                raise WorkflowError("No URL found to summarize")
-            token_stream = web_summary.stream_summary(url=state.url, user_prompt=state.input)
-        elif intent == "summarize_audio":
-            if not state.url:
-                raise WorkflowError("No audio URL found to summarize")
-            token_stream = audio_summary.stream_summary_from_url(url=state.url, user_prompt=state.input)
-        elif intent == "rag_question_answering":
-            token_stream = rag_service.stream_answer(
-                question=state.input,
-                sources=state.rag_sources,
-                citations=state.rag_citations,
-                user_prompt=state.input,
-            )
-        else:
-            raise WorkflowError("Unknown intent")
-
-        async for evt in stream_tokens_as_sse(token_stream, collector):
+        async for evt in run_react_agent_stream(
+            groq=groq_chat,
+            translation=translation,
+            yt_summary=yt_summary,
+            web_summary=web_summary,
+            audio_summary=audio_summary,
+            rag_service=rag_service,
+            user_input=user_input or "",
+            channel_id=channel_id,
+            collector=collector,
+        ):
             yield evt
 
-        # Persist final answer only after token streaming finishes.
+        yield sse("generation_completed", {"status": "completed"})
+
         interaction.status = "completed"
         interaction.output = collector.full_text
         interaction.latency_ms = int((time.time() - started) * 1000)
         run.status = "completed"
-        run.state = state.model_dump(mode="json")
+        run.state = {"intent": "react_agent", "output": collector.full_text[:500]}
         db.commit()
 
         ai_activity = Activity(
@@ -294,7 +133,7 @@ async def run_ai_action_workflow(
             actor_id=None,
             activity_type="ai_message",
             content=collector.full_text,
-            meta_data={"intent": state.intent, "interaction_id": str(interaction.id)},
+            meta_data={"intent": "react_agent", "interaction_id": str(interaction.id)},
             parent_activity_id=None,
         )
         db.add(ai_activity)
@@ -318,15 +157,13 @@ async def run_ai_action_workflow(
         except Exception:
             pass
 
-        yield sse("generation_completed", {"status": "completed"})
-
     except Exception as exc:
         yield sse("error", {"message": str(exc)})
         interaction.status = "failed"
         interaction.output = None
         interaction.latency_ms = int((time.time() - started) * 1000)
         run.status = "failed"
-        run.state = state.model_dump(mode="json")
+        run.state = {"error": str(exc)}
         db.commit()
         return
     finally:
