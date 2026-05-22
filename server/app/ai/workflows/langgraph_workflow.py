@@ -3,11 +3,12 @@ from __future__ import annotations
 import re
 import time
 from collections.abc import AsyncGenerator
-from typing import Any, TypedDict
+from typing import Any
 from uuid import UUID
 
 import httpx
 from langgraph.graph import END, START, StateGraph
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.ai.services.audio_summary_service import AudioSummaryService
@@ -19,7 +20,7 @@ from app.ai.services.streaming_service import StreamingCollector, sse, stream_to
 from app.ai.services.translation_service import TranslationService
 from app.ai.services.website_summary_service import WebsiteSummaryService
 from app.ai.services.youtube_summary_service import YouTubeSummaryService
-from app.ai.types import Intent
+from app.ai.types import Intent, RetrievedSource, SourceDocument
 from app.core.config import get_settings
 from app.db.models.activity import Activity
 from app.db.models.ai import AIInteraction, AIRun
@@ -32,36 +33,43 @@ from app.repositories.workspace_repository import WorkspaceRepository
 from app.realtime.connection_manager import realtime_manager
 
 
-_url_re = re.compile(r"https?://\\S+", re.I)
+_url_re = re.compile(r"https?://\S+", re.I)
 
 
 class WorkflowError(RuntimeError):
     pass
 
 
-class WorkflowState(TypedDict, total=False):
+class WorkflowState(BaseModel):
     channel_id: UUID
     workspace_id: UUID
     user_id: UUID
 
-    action: str
-    message_id: UUID | None
-    input: str
-    target_language: str | None
+    action: str = "auto"
+    message_id: UUID | None = None
+    input: str = ""
+    target_language: str | None = None
 
-    intent: Intent
-    intent_reason: str
+    intent: Intent = "unknown"
+    intent_reason: str | None = None
+    intent_confidence: float = Field(default=0.0, ge=0.0, le=1.0)
+    intent_signals: dict[str, Any] = Field(default_factory=dict)
 
-    url: str | None
-    selected_message: str | None
+    url: str | None = None
+    selected_message: str | None = None
+    retrieval_status: str | None = None
 
-    rag_sources: list[dict[str, Any]]
-    rag_citations: list[dict[str, Any]]
+    rag_sources: list[SourceDocument] = Field(default_factory=list)
+    rag_citations: list[RetrievedSource] = Field(default_factory=list)
 
 
 def _extract_url(text: str) -> str | None:
     m = _url_re.search(text or "")
     return m.group(0) if m else None
+
+
+def _merge_state(state: WorkflowState, payload: dict[str, Any]) -> WorkflowState:
+    return WorkflowState.model_validate({**state.model_dump(mode="python"), **payload})
 
 
 def _require_channel_member(db: Session, *, current_user: User, channel_id: UUID) -> Channel:
@@ -90,42 +98,54 @@ def build_langgraph(
     intent_classifier: IntentClassifierService,
     rag_service: RagService,
 ) -> Any:
-    async def detect_intent_node(state: WorkflowState) -> WorkflowState:
+    async def detect_intent_node(state: WorkflowState) -> dict[str, Any]:
         result = intent_classifier.classify(
-            action=state.get("action", "auto"),
-            user_input=state.get("input", ""),
-            target_language=state.get("target_language"),
-            message_id=str(state.get("message_id")) if state.get("message_id") else None,
+            action=state.action,
+            user_input=state.input,
+            target_language=state.target_language,
+            message_id=str(state.message_id) if state.message_id else None,
         )
-        return {"intent": result.intent, "intent_reason": result.reason}
+        return {
+            "intent": result.intent,
+            "intent_reason": result.reason,
+            "intent_confidence": result.confidence,
+            "intent_signals": result.signals,
+        }
 
-    async def load_sources_node(state: WorkflowState) -> WorkflowState:
+    async def load_sources_node(state: WorkflowState) -> dict[str, Any]:
         selected_message: str | None = None
-        if state.get("message_id"):
-            msg = db.query(Activity).filter(Activity.id == state["message_id"]).one_or_none()
-            if not msg or msg.channel_id != state["channel_id"]:
+        if state.message_id:
+            msg = db.query(Activity).filter(Activity.id == state.message_id).one_or_none()
+            if not msg or msg.channel_id != state.channel_id:
                 raise WorkflowError("Selected message not found in this channel")
             selected_message = msg.content or ""
 
-        url = _extract_url(state.get("input", "")) or _extract_url(selected_message or "")
+        url = _extract_url(state.input) or _extract_url(selected_message or "")
         return {"selected_message": selected_message, "url": url}
 
-    async def retrieve_context_node(state: WorkflowState) -> WorkflowState:
-        if state.get("intent") != "rag_question_answering":
+    async def start_retrieval_node(state: WorkflowState) -> dict[str, Any]:
+        if state.intent != "rag_question_answering":
             return {}
-        sources, citations = await rag_service.retrieve(channel_id=state["channel_id"], query=state.get("input", ""))
+        return {"retrieval_status": "started"}
+
+    async def retrieve_context_node(state: WorkflowState) -> dict[str, Any]:
+        if state.intent != "rag_question_answering":
+            return {}
+        sources, citations = await rag_service.retrieve(channel_id=state.channel_id, query=state.input)
         return {
-            "rag_sources": [s.__dict__ for s in sources],
-            "rag_citations": [c.__dict__ for c in citations],
+            "rag_sources": sources,
+            "rag_citations": citations,
         }
 
     graph = StateGraph(WorkflowState)
     graph.add_node("detect_intent", detect_intent_node)
     graph.add_node("load_sources", load_sources_node)
+    graph.add_node("start_retrieval", start_retrieval_node)
     graph.add_node("retrieve_context", retrieve_context_node)
     graph.add_edge(START, "detect_intent")
     graph.add_edge("detect_intent", "load_sources")
-    graph.add_edge("load_sources", "retrieve_context")
+    graph.add_edge("load_sources", "start_retrieval")
+    graph.add_edge("start_retrieval", "retrieve_context")
     graph.add_edge("retrieve_context", END)
     return graph.compile()
 
