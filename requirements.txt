@@ -8,6 +8,7 @@ bcrypt<5
 passlib[bcrypt]
 email-validator
 itsdangerous
+boto3
 pgvector
 python-dotenv
 pydantic
