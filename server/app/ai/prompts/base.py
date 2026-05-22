@@ -5,12 +5,14 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field
 
 
-Role = Literal["system", "user", "assistant"]
+Role = Literal["system", "user", "assistant", "tool"]
 
 
 class ChatMessage(BaseModel):
     role: Role
-    content: str = Field(min_length=1)
+    content: str = ""
+    tool_call_id: str | None = None
+    tool_calls: list[dict] | None = None
 
 
 class ChatPrompt(BaseModel):
