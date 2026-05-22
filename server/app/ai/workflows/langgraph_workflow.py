@@ -184,80 +184,95 @@ async def run_ai_action_workflow(
     db.refresh(interaction)
 
     collector = StreamingCollector()
-    async_client = httpx.AsyncClient()
-    embeddings = HfEmbeddingsService(async_client=async_client)
-    groq_chat = GroqChatService()
-    groq_audio = GroqAudioService()
-
-    intent_classifier = IntentClassifierService()
-    translation = TranslationService(groq_chat)
-    yt_summary = YouTubeSummaryService(groq_chat)
-    web_summary = WebsiteSummaryService(groq_chat)
-    audio_summary = AudioSummaryService(groq_audio, groq_chat)
-    rag_service = RagService(db, embeddings=embeddings, groq=groq_chat)
-
-    compiled = build_langgraph(db=db, intent_classifier=intent_classifier, rag_service=rag_service)
-
-    state: WorkflowState = {
-        "channel_id": channel_id,
-        "workspace_id": channel.workspace_id,
-        "user_id": current_user.id,
-        "action": action or "auto",
-        "message_id": message_id,
-        "input": user_input or "",
-        "target_language": target_language,
-    }
+    async_client = httpx.AsyncClient(timeout=httpx.Timeout(60.0, connect=10.0))
+    state = WorkflowState(
+        channel_id=channel_id,
+        workspace_id=channel.workspace_id,
+        user_id=current_user.id,
+        action=action or "auto",
+        message_id=message_id,
+        input=user_input or "",
+        target_language=target_language,
+    )
 
     try:
+        embeddings = HfEmbeddingsService(async_client=async_client)
+        groq_chat = GroqChatService()
+        groq_audio = GroqAudioService()
+
+        intent_classifier = IntentClassifierService()
+        translation = TranslationService(groq_chat)
+        yt_summary = YouTubeSummaryService(groq_chat)
+        web_summary = WebsiteSummaryService(groq_chat)
+        audio_summary = AudioSummaryService(groq_audio, groq_chat)
+        rag_service = RagService(db, embeddings=embeddings, groq=groq_chat)
+
+        compiled = build_langgraph(db=db, intent_classifier=intent_classifier, rag_service=rag_service)
+
         # Stream planning events from LangGraph steps.
         yield sse("source_loading", {"message": "Starting AI workflow"})
         async for update in compiled.astream(state, stream_mode="updates"):
             if "detect_intent" in update:
                 payload = update["detect_intent"]
-                yield sse("intent_detected", {"intent": payload.get("intent"), "reason": payload.get("intent_reason")})
-                state.update(payload)
+                state = _merge_state(state, payload)
+                yield sse(
+                    "intent_detected",
+                    {
+                        "intent": state.intent,
+                        "reason": state.intent_reason,
+                        "confidence": state.intent_confidence,
+                        "signals": state.intent_signals,
+                    },
+                )
             if "load_sources" in update:
                 payload = update["load_sources"]
-                yield sse("source_loading", {"message": "Sources loaded"})
-                state.update(payload)
+                state = _merge_state(state, payload)
+                yield sse("source_loading", {"message": "Sources loaded", "url": state.url})
+            if "start_retrieval" in update:
+                payload = update["start_retrieval"]
+                state = _merge_state(state, payload)
+                if state.retrieval_status == "started":
+                    yield sse("retrieval_started", {"message": "Retrieval started"})
             if "retrieve_context" in update:
-                yield sse("retrieval_started", {"message": "Retrieval started"})
                 payload = update["retrieve_context"]
-                state.update(payload)
-                yield sse("retrieval_completed", {"sources": state.get("rag_citations", [])})
+                state = _merge_state(state, payload)
+                yield sse(
+                    "retrieval_completed",
+                    {"sources": [citation.model_dump(mode="json") for citation in state.rag_citations]},
+                )
 
         # Generation phase (stream tokens).
-        intent: Intent = state.get("intent", "unknown")
+        intent: Intent = state.intent
         yield sse("generation_started", {"message": "Streaming started"})
 
         if intent == "translate_message":
-            if not state.get("selected_message"):
+            if not state.selected_message:
                 raise WorkflowError("message_id is required for translation")
-            if not state.get("target_language"):
+            if not state.target_language:
                 raise WorkflowError("target_language is required for translation")
             token_stream = translation.stream_translation(
-                text=state["selected_message"],
-                target_language=state["target_language"],
+                text=state.selected_message,
+                target_language=state.target_language,
+                user_prompt=state.input,
             )
         elif intent == "summarize_youtube":
-            if not state.get("url"):
+            if not state.url:
                 raise WorkflowError("No URL found to summarize")
-            token_stream = yt_summary.stream_summary(url=state["url"])
+            token_stream = yt_summary.stream_summary(url=state.url, user_prompt=state.input)
         elif intent == "summarize_website":
-            if not state.get("url"):
+            if not state.url:
                 raise WorkflowError("No URL found to summarize")
-            token_stream = web_summary.stream_summary(url=state["url"])
+            token_stream = web_summary.stream_summary(url=state.url, user_prompt=state.input)
         elif intent == "summarize_audio":
-            if not state.get("url"):
+            if not state.url:
                 raise WorkflowError("No audio URL found to summarize")
-            token_stream = audio_summary.stream_summary_from_url(url=state["url"])
+            token_stream = audio_summary.stream_summary_from_url(url=state.url, user_prompt=state.input)
         elif intent == "rag_question_answering":
-            sources = state.get("rag_sources", [])
-            citations = state.get("rag_citations", [])
             token_stream = rag_service.stream_answer(
-                question=state.get("input", ""),
-                sources=[type("SD", (), s) for s in sources],  # lightweight adapter
-                citations=[type("RS", (), c) for c in citations],
+                question=state.input,
+                sources=state.rag_sources,
+                citations=state.rag_citations,
+                user_prompt=state.input,
             )
         else:
             raise WorkflowError("Unknown intent")
@@ -265,50 +280,54 @@ async def run_ai_action_workflow(
         async for evt in stream_tokens_as_sse(token_stream, collector):
             yield evt
 
+        # Persist final answer only after token streaming finishes.
+        interaction.status = "completed"
+        interaction.output = collector.full_text
+        interaction.latency_ms = int((time.time() - started) * 1000)
+        run.status = "completed"
+        run.state = state.model_dump(mode="json")
+        db.commit()
+
+        ai_activity = Activity(
+            workspace_id=channel.workspace_id,
+            channel_id=channel_id,
+            actor_id=None,
+            activity_type="ai_message",
+            content=collector.full_text,
+            meta_data={"intent": state.intent, "interaction_id": str(interaction.id)},
+            parent_activity_id=None,
+        )
+        db.add(ai_activity)
+        db.commit()
+        db.refresh(ai_activity)
+
+        try:
+            await realtime_manager.broadcast_to_channel(
+                channel_id,
+                {
+                    "type": "activity_created",
+                    "channel_id": str(channel_id),
+                    "workspace_id": str(channel.workspace_id),
+                    "activity": {
+                        "id": str(ai_activity.id),
+                        "content": ai_activity.content,
+                        "activity_type": ai_activity.activity_type,
+                    },
+                },
+            )
+        except Exception:
+            pass
+
         yield sse("generation_completed", {"status": "completed"})
 
     except Exception as exc:
         yield sse("error", {"message": str(exc)})
         interaction.status = "failed"
         interaction.output = None
+        interaction.latency_ms = int((time.time() - started) * 1000)
+        run.status = "failed"
+        run.state = state.model_dump(mode="json")
         db.commit()
-        await async_client.aclose()
         return
-
-    # Persist final answer after streaming.
-    interaction.status = "completed"
-    interaction.output = collector.full_text
-    interaction.latency_ms = int((time.time() - started) * 1000)
-    run.status = "completed"
-    db.commit()
-
-    # Save as an activity in channel.
-    ai_activity = Activity(
-        workspace_id=channel.workspace_id,
-        channel_id=channel_id,
-        actor_id=None,
-        activity_type="ai_message",
-        content=collector.full_text,
-        meta_data={"intent": state.get("intent"), "interaction_id": str(interaction.id)},
-        parent_activity_id=None,
-    )
-    db.add(ai_activity)
-    db.commit()
-    db.refresh(ai_activity)
-
-    # Broadcast best-effort to realtime subscribers.
-    try:
-        await realtime_manager.broadcast_to_channel(
-            channel_id,
-            {
-                "type": "activity_created",
-                "channel_id": str(channel_id),
-                "workspace_id": str(channel.workspace_id),
-                "activity": {"id": str(ai_activity.id), "content": ai_activity.content, "activity_type": ai_activity.activity_type},
-            },
-        )
-    except Exception:
-        pass
-
-    await async_client.aclose()
-
+    finally:
+        await async_client.aclose()
