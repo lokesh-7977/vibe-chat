@@ -17,6 +17,8 @@ SseEventName = Literal[
     "token",
     "generation_completed",
     "error",
+    "agent_action",
+    "agent_observation",
 ]
 
 
