@@ -2,8 +2,6 @@ from __future__ import annotations
 
 import math
 from collections.abc import AsyncGenerator
-from dataclasses import dataclass
-from typing import Any
 from uuid import UUID
 import asyncio
 import re
@@ -13,7 +11,8 @@ from sqlalchemy.orm import Session
 
 from app.ai.services.groq_client import GroqChatService
 from app.ai.services.hf_embeddings import HfEmbeddingsService, normalize_embedding_dim
-from app.ai.types import SourceDocument
+from app.ai.types import RetrievedSource, SourceDocument
+from app.ai.prompts.rag.prompt import build_rag_qa_prompt
 from app.core.config import get_settings
 from app.db.models.activity import Activity
 from app.db.models.document import Document
@@ -25,14 +24,6 @@ from app.storage.r2_download import download_document_bytes
 from app.utils.text_extractors import extract_text_from_document_bytes, chunk_text
 from app.ai.services.web_extractor import fetch_readable_text
 from app.ai.services.youtube_transcript import fetch_youtube_transcript_text
-
-
-@dataclass(frozen=True)
-class RetrievedSource:
-    kind: str
-    id: str
-    snippet: str
-    url: str | None = None
 
 
 class RagService:
@@ -60,7 +51,7 @@ class RagService:
         extracted_links = 0
         for a in to_embed:
             content = a.content or ""
-            url_match = re.search(r"https?://\\S+", content)
+            url_match = re.search(r"https?://\S+", content)
             if url_match and extracted_links < 5:
                 url = url_match.group(0)
                 try:
@@ -243,6 +234,7 @@ class RagService:
         question: str,
         sources: list[SourceDocument],
         citations: list[RetrievedSource],
+        user_prompt: str | None = None,
     ) -> AsyncGenerator[str, None]:
         context = "\n\n".join(
             f"[{i+1}] ({s.source_type}) {s.content}"
@@ -252,16 +244,11 @@ class RagService:
             f"[{i+1}] {c.kind}:{c.id}{(' ' + c.url) if c.url else ''}"
             for i, c in enumerate(citations)
         )
-        system = (
-            "You answer using ONLY the provided context. If the answer is not in context, say you don't know. "
-            "At the end, include a 'Sources:' section listing the source ids used."
+        prompt = build_rag_qa_prompt(
+            question=question,
+            context=context,
+            allowed_sources=sources_text,
+            user_prompt=user_prompt,
         )
-        user = (
-            f"Question:\n{question}\n\n"
-            f"Context:\n{context}\n\n"
-            f"Allowed sources:\n{sources_text}\n\n"
-            "Return the answer followed by:\n\nSources:\n- <source>\n- <source>\n"
-        )
-
-        async for token in self.groq.stream_chat(system=system, user=user):
+        async for token in self.groq.stream_chat(messages=prompt.messages, temperature=0.2):
             yield token
