@@ -68,11 +68,11 @@ class FakeUserRepository:
 
 
 @pytest.fixture
-def request():
+def fake_request():
     return SimpleNamespace(session={})
 
 
-def test_register_user_stores_session_and_returns_tokens(monkeypatch, request):
+def test_register_user_stores_session_and_returns_tokens(monkeypatch, fake_request):
     repository = FakeUserRepository()
     service = AuthService(repository)
     payload = UserCreate(
@@ -98,17 +98,17 @@ def test_register_user_stores_session_and_returns_tokens(monkeypatch, request):
         lambda user_id: f"refresh::{user_id}",
     )
 
-    response = service.register_user(payload, request)
+    response = service.register_user(payload, fake_request)
 
     assert response.success is True
     assert response.data.access_token == "access-token"
     assert response.data.user.username == "lokesh-4321"
     assert repository.created_payload["password"] == "hashed::secret123"
-    assert request.session["user_id"] == str(repository.active_user.id)
-    assert request.session["refresh_token"] == f"refresh::{repository.active_user.id}"
+    assert fake_request.session["user_id"] == str(repository.active_user.id)
+    assert fake_request.session["refresh_token"] == f"refresh::{repository.active_user.id}"
 
 
-def test_login_user_rejects_invalid_password(monkeypatch, request):
+def test_login_user_rejects_invalid_password(monkeypatch, fake_request):
     repository = FakeUserRepository(active_user=FakeUser(password="stored-hash"))
     service = AuthService(repository)
     payload = UserLogin(email="lokesh@example.com", password="wrongpass")
@@ -119,18 +119,18 @@ def test_login_user_rejects_invalid_password(monkeypatch, request):
     )
 
     with pytest.raises(HTTPException) as exc_info:
-        service.login_user(payload, request)
+        service.login_user(payload, fake_request)
 
     assert exc_info.value.status_code == 401
     assert exc_info.value.detail == "Invalid email or password"
 
 
-def test_refresh_token_rotates_refresh_token(monkeypatch, request):
+def test_refresh_token_rotates_refresh_token(monkeypatch, fake_request):
     active_user = FakeUser()
     repository = FakeUserRepository(active_user=active_user)
     service = AuthService(repository)
-    request.session["user_id"] = str(active_user.id)
-    request.session["refresh_token"] = "old-refresh-token"
+    fake_request.session["user_id"] = str(active_user.id)
+    fake_request.session["refresh_token"] = "old-refresh-token"
 
     monkeypatch.setattr(
         "app.services.auth_service.verify_refresh_token",
@@ -145,35 +145,35 @@ def test_refresh_token_rotates_refresh_token(monkeypatch, request):
         lambda user_id: "new-refresh-token",
     )
 
-    response = service.refresh_token(request)
+    response = service.refresh_token(fake_request)
 
     assert response.success is True
     assert response.data.access_token == "new-access-token"
-    assert request.session["refresh_token"] == "new-refresh-token"
+    assert fake_request.session["refresh_token"] == "new-refresh-token"
 
 
-def test_logout_user_requires_authenticated_session(request):
+def test_logout_user_requires_authenticated_session(fake_request):
     repository = FakeUserRepository()
     service = AuthService(repository)
 
     with pytest.raises(HTTPException) as exc_info:
-        service.logout_user(request)
+        service.logout_user(fake_request)
 
     assert exc_info.value.status_code == 401
     assert exc_info.value.detail == "User not authenticated"
 
 
-def test_delete_account_marks_user_deleted_and_clears_session(request):
+def test_delete_account_marks_user_deleted_and_clears_session(fake_request):
     active_user = FakeUser()
     repository = FakeUserRepository(active_user=active_user)
     service = AuthService(repository)
-    request.session["user_id"] = str(active_user.id)
-    request.session["refresh_token"] = "refresh-token"
+    fake_request.session["user_id"] = str(active_user.id)
+    fake_request.session["refresh_token"] = "refresh-token"
 
-    response = service.delete_account(request)
+    response = service.delete_account(fake_request)
 
     assert response.success is True
     assert active_user.is_deleted is True
     assert active_user.is_active is False
     assert repository.save_called is True
-    assert request.session == {}
+    assert fake_request.session == {}
