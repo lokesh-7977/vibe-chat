@@ -15,6 +15,7 @@ from app.repositories.activity_repository import ActivityRepository
 from app.repositories.channel_member_repository import ChannelMemberRepository
 from app.repositories.channel_repository import ChannelRepository
 from app.repositories.workspace_repository import WorkspaceRepository
+from app.realtime.connection_manager import realtime_manager
 
 
 class ActivityService:
@@ -83,6 +84,20 @@ class ActivityService:
             ) from exc
 
         self.db.refresh(activity)
+        # Broadcast only after persistence.
+        event = {
+            "type": "activity_created",
+            "channel_id": str(channel_id),
+            "workspace_id": str(activity.workspace_id),
+            "activity": ActivityResponse.model_validate(activity).model_dump(),
+        }
+        # ActivityService is sync (runs in threadpool); broadcast best-effort.
+        try:
+            import anyio
+
+            anyio.from_thread.run(realtime_manager.broadcast_to_channel, channel_id, event)
+        except Exception:
+            pass
         return ApiResponse(
             success=True,
             message="Activity created successfully",
@@ -182,4 +197,3 @@ class ActivityService:
             raise HTTPException(status_code=400, detail="Unable to delete activity") from exc
 
         return ApiResponse(success=True, message="Activity deleted successfully", data=None)
-
