@@ -7,6 +7,7 @@ from typing import Any
 from groq import Groq
 
 from app.core.config import get_settings
+from app.ai.prompts.base import ChatMessage
 
 
 class GroqChatService:
@@ -17,19 +18,29 @@ class GroqChatService:
         self._client = Groq(api_key=settings.groq_api_key)
         self._model = settings.groq_chat_model
 
-    async def stream_chat(self, *, system: str, user: str) -> AsyncGenerator[str, None]:
+    @staticmethod
+    def _clamp_temperature(temp: float | None) -> float:
+        # Always keep temperature in [0.1, 0.3] to reduce hallucinations.
+        if temp is None:
+            return 0.2
+        return max(0.1, min(0.3, float(temp)))
+
+    async def stream_chat(
+        self,
+        *,
+        messages: list[ChatMessage],
+        temperature: float | None = None,
+    ) -> AsyncGenerator[str, None]:
         queue: asyncio.Queue[str | None] = asyncio.Queue()
         error_queue: asyncio.Queue[BaseException | None] = asyncio.Queue()
+        temp = self._clamp_temperature(temperature)
 
         def _produce() -> None:
             try:
                 stream = self._client.chat.completions.create(
                     model=self._model,
-                    messages=[
-                        {"role": "system", "content": system},
-                        {"role": "user", "content": user},
-                    ],
-                    temperature=0.2,
+                    messages=[m.model_dump() for m in messages],
+                    temperature=temp,
                     stream=True,
                 )
                 for chunk in stream:
