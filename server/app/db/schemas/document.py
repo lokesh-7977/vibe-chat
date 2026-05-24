@@ -9,7 +9,7 @@ class DocumentBase(BaseModel):
     channel_id: UUID | None = None
     uploaded_by_id: UUID | None = None
     file_name: str
-    file_url: str
+    object_key: str
     mime_type: str
     file_size: int | None = None
     status: str = "uploaded"
