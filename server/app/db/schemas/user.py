@@ -21,6 +21,12 @@ class UserResponse(BaseModel):
     is_deleted: bool
 
 
+class UserUpdate(BaseModel):
+    full_name: str | None = None
+    username: str | None = None
+    email: EmailStr | None = None
+
+
 class UserLogin(BaseModel):
     email: EmailStr
     password: str = Field(min_length=6, max_length=72)
