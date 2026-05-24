@@ -6,7 +6,7 @@ from app.core.security import hash_password, verify_password
 from app.repositories.user_repository import UserRepository
 from app.db.schemas.auth import AuthTokensResponse, RefreshTokenResponse
 from app.db.schemas.common import ApiResponse
-from app.db.schemas.user import UserCreate, UserLogin, UserResponse
+from app.db.schemas.user import UserCreate, UserLogin, UserResponse, UserUpdate
 from app.utils.create_access_token import create_access_token
 from app.utils.create_refresh_token import create_refresh_token
 from app.utils.generate_username import generate_username
@@ -117,6 +117,37 @@ class AuthService:
         return ApiResponse(
             success=True,
             message="Profile retrieved successfully",
+            data=UserResponse.model_validate(db_user),
+        )
+
+    def update_profile(
+        self,
+        payload: UserUpdate,
+        request: Request,
+    ) -> ApiResponse[UserResponse]:
+        db_user = self._get_authenticated_user(request)
+
+        if payload.email is not None and payload.email != db_user.email:
+            existing = self.user_repository.get_by_email(payload.email)
+            if existing:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Email already in use",
+                )
+            db_user.email = payload.email
+
+        if payload.full_name is not None:
+            db_user.full_name = payload.full_name
+
+        if payload.username is not None:
+            db_user.username = payload.username
+
+        self.user_repository.save()
+        self.user_repository.db.refresh(db_user)
+
+        return ApiResponse(
+            success=True,
+            message="Profile updated successfully",
             data=UserResponse.model_validate(db_user),
         )
 
