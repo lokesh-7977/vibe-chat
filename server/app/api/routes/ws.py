@@ -9,7 +9,6 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from app.db.models.user import User
 from app.db.session import SessionLocal
 from app.realtime.connection_manager import SocketUser, realtime_manager
-from app.repositories.channel_member_repository import ChannelMemberRepository
 from app.repositories.channel_repository import ChannelRepository
 from app.repositories.user_repository import UserRepository
 from app.repositories.workspace_repository import WorkspaceRepository
@@ -34,7 +33,6 @@ def _authorize_channel(user: User, channel_id: UUID) -> None:
     try:
         channel_repo = ChannelRepository(db)
         workspace_repo = WorkspaceRepository(db)
-        channel_member_repo = ChannelMemberRepository(db)
 
         channel = channel_repo.get_by_id(channel_id)
         if not channel:
@@ -43,10 +41,6 @@ def _authorize_channel(user: User, channel_id: UUID) -> None:
         workspaces = workspace_repo.list_for_user(user.id)
         if not any(ws.id == channel.workspace_id for ws in workspaces):
             raise PermissionError("Workspace access denied")
-
-        membership = channel_member_repo.get(channel_id, user.id)
-        if not membership:
-            raise PermissionError("Channel access denied")
     finally:
         db.close()
 
@@ -54,13 +48,21 @@ def _authorize_channel(user: User, channel_id: UUID) -> None:
 @router.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     token = _get_token(websocket)
-    if not token:
-        await websocket.close(code=4401)
-        return
+    session_user_id = websocket.session.get("user_id")
 
-    try:
-        user_id = UUID(verify_access_token(token))
-    except Exception:
+    if token:
+        try:
+            user_id = UUID(verify_access_token(token))
+        except Exception:
+            await websocket.close(code=4401)
+            return
+    elif session_user_id:
+        try:
+            user_id = UUID(str(session_user_id))
+        except Exception:
+            await websocket.close(code=4401)
+            return
+    else:
         await websocket.close(code=4401)
         return
 
@@ -168,4 +170,3 @@ async def websocket_endpoint(websocket: WebSocket):
                 channel_id,
                 {"type": "user_offline", "user_id": str(user.id), "channel_id": str(channel_id)},
             )
-
