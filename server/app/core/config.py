@@ -32,27 +32,33 @@ class Settings(BaseSettings):
     refresh_token_expire_days: int = 7
 
     uploads_max_file_size_bytes: int = 50 * 1024 * 1024
-    uploads_allowed_mime_types: list[str] = [
-        "application/pdf",
-        "application/msword",
-        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        "text/plain",
-        "text/markdown",
-        "audio/mpeg",
-        "audio/mp4",
-        "audio/wav",
-        "audio/webm",
-        "audio/ogg",
-    ]
+    # Keep this as a simple string to avoid JSON parsing requirements for list env vars.
+    # Use comma-separated values in env: UPLOADS_ALLOWED_MIME_TYPES=image/jpeg,image/png
+    uploads_allowed_mime_types: str = (
+        "application/pdf,"
+        "application/msword,"
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document,"
+        "text/plain,"
+        "text/markdown,"
+        "image/jpeg,"
+        "image/png,"
+        "image/webp,"
+        "image/gif,"
+        "audio/mpeg,"
+        "audio/mp4,"
+        "audio/wav,"
+        "audio/webm,"
+        "audio/ogg"
+    )
 
     cors_allow_origins: list[str] = []
 
-    groq_api_key: str | None = None
-    groq_chat_model: str = "llama-3.1-70b-versatile"
-    groq_whisper_model: str = "whisper-large-v3"
-
-    hf_api_token: str | None = None
-    hf_embeddings_model: str = "sentence-transformers/all-MiniLM-L6-v2"
+    nvapi_api_key: str | None = None
+    nvapi_base_url: str = "https://integrate.api.nvidia.com"
+    nvapi_chat_model: str = "openai/gpt-oss-20b"
+    nvapi_translate_model: str = "nvidia/riva-translate-4b-instruct"
+    nvapi_translate_fallback_model: str | None = None
+    nvapi_vision_model: str = "meta/llama-3.2-11b-vision-instruct"
 
     rag_top_k: int = 8
     rag_max_sources_per_type: int = 50
@@ -62,7 +68,7 @@ class Settings(BaseSettings):
     r2_secret_access_key: str | None = None
     r2_bucket_name: str | None = None
     r2_public_base_url: str | None = None
-    r2_presign_expires_seconds: int = 900
+    r2_presign_expires_seconds: int = 3600
     auth_rate_limit_window_seconds: int = 60
     auth_rate_limit_register_requests: int = 5
     auth_rate_limit_login_requests: int = 5
@@ -92,16 +98,15 @@ class Settings(BaseSettings):
             return False
         return True
 
-    @field_validator("uploads_allowed_mime_types", mode="before")
-    @classmethod
-    def normalize_uploads_allowed_mime_types(cls, value: Any) -> list[str]:
+    @property
+    def uploads_allowed_mime_types_list(self) -> list[str]:
+        value = self.uploads_allowed_mime_types
         if value is None:
             return []
         if isinstance(value, str):
+            # allow empty string
             return [part.strip() for part in value.split(",") if part.strip()]
-        if isinstance(value, (list, tuple)):
-            return [str(part).strip() for part in value if str(part).strip()]
-        return [str(value).strip()]
+        return [str(value).strip()] if str(value).strip() else []
 
     @field_validator("cors_allow_origins", mode="before")
     @classmethod
