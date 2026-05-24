@@ -6,6 +6,10 @@ from app.api.dependencies.user import CurrentUserDep
 from app.api.dependencies.workspace import WorkspaceControllerDep
 from app.db.schemas.common import ApiResponse
 from app.db.schemas.workspace import WorkspaceCreate, WorkspaceResponse, WorkspaceUpdate
+from app.db.schemas.workspace_member import (
+    WorkspaceMemberCreate,
+    WorkspaceMemberResponse,
+)
 
 router = APIRouter(prefix="/workspaces", tags=["workspaces"])
 
@@ -82,4 +86,40 @@ def delete_workspace(
     return controller.delete_workspace(
         current_user=current_user,
         workspace_id=workspace_id,
+    )
+
+
+@router.get(
+    "/{workspace_id}/members",
+    response_model=ApiResponse[list[WorkspaceMemberResponse]],
+    status_code=status.HTTP_200_OK,
+)
+def list_workspace_members(
+    workspace_id: UUID,
+    _request: Request,
+    current_user: CurrentUserDep,
+    controller: WorkspaceControllerDep,
+):
+    return controller.list_members(
+        current_user=current_user,
+        workspace_id=workspace_id,
+    )
+
+
+@router.post(
+    "/{workspace_id}/members",
+    response_model=ApiResponse[WorkspaceMemberResponse],
+    status_code=status.HTTP_201_CREATED,
+)
+def add_workspace_member(
+    workspace_id: UUID,
+    payload: WorkspaceMemberCreate,
+    _request: Request,
+    current_user: CurrentUserDep,
+    controller: WorkspaceControllerDep,
+):
+    return controller.add_member(
+        current_user=current_user,
+        workspace_id=workspace_id,
+        payload=payload,
     )
