@@ -24,6 +24,9 @@ class ChannelController:
     def delete_channel(self, current_user: User, channel_id) -> ApiResponse[None]:
         return self.channel_service.delete_channel(current_user=current_user, channel_id=channel_id)
 
+    def delete_channel_messages(self, current_user: User, channel_id) -> ApiResponse[None]:
+        return self.channel_service.delete_channel_messages(current_user=current_user, channel_id=channel_id)
+
     def list_channel_members(self, current_user: User, channel_id) -> ApiResponse[list[ChannelMemberResponse]]:
         return self.channel_service.list_channel_members(current_user=current_user, channel_id=channel_id)
 
