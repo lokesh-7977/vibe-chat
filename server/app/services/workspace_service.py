@@ -10,7 +10,13 @@ from app.db.models.workspace import Workspace
 from app.db.models.workspace_member import WorkspaceMember
 from app.db.schemas.common import ApiResponse
 from app.db.schemas.workspace import WorkspaceCreate, WorkspaceResponse, WorkspaceUpdate
+from app.db.schemas.workspace_member import (
+    WorkspaceMemberCreate,
+    WorkspaceMemberResponse,
+)
+from app.repositories.channel_member_repository import ChannelMemberRepository
 from app.repositories.channel_repository import ChannelRepository
+from app.repositories.user_repository import UserRepository
 from app.repositories.workspace_member_repository import WorkspaceMemberRepository
 from app.repositories.workspace_repository import WorkspaceRepository
 
@@ -28,6 +34,8 @@ class WorkspaceService:
         self.workspace_repository = WorkspaceRepository(db)
         self.workspace_member_repository = WorkspaceMemberRepository(db)
         self.channel_repository = ChannelRepository(db)
+        self.channel_member_repository = ChannelMemberRepository(db)
+        self.user_repository = UserRepository(db)
 
     def create_workspace(
         self,
@@ -199,4 +207,109 @@ class WorkspaceService:
             success=True,
             message="Workspace deleted successfully",
             data=None,
+        )
+
+    def list_members(
+        self,
+        workspace_id,
+        _current_user: User,
+    ) -> ApiResponse[list[WorkspaceMemberResponse]]:
+        workspace = self.workspace_repository.get_by_id(workspace_id)
+        if not workspace:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Workspace not found",
+            )
+
+        members = self.workspace_member_repository.list_for_workspace(workspace_id)
+        return ApiResponse(
+            success=True,
+            message="Members retrieved successfully",
+            data=[WorkspaceMemberResponse.model_validate(m) for m in members],
+        )
+
+    def add_member(
+        self,
+        current_user: User,
+        workspace_id,
+        payload: WorkspaceMemberCreate,
+    ) -> ApiResponse[WorkspaceMemberResponse]:
+        workspace = self.workspace_repository.get_by_id(workspace_id)
+        if not workspace:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Workspace not found",
+            )
+
+        if workspace.owner_id != current_user.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only the workspace owner can add members",
+            )
+
+        user_to_add = self.user_repository.get_active_by_id(payload.user_id)
+        if not user_to_add:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found",
+            )
+
+        existing = self.workspace_member_repository.get_by_workspace_and_user(
+            workspace_id, payload.user_id
+        )
+        if existing:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="User is already a member of this workspace",
+            )
+
+        membership = WorkspaceMember(
+            workspace_id=workspace_id,
+            user_id=payload.user_id,
+            role=payload.role,
+        )
+        self.workspace_member_repository.create(membership)
+
+        # auto-join all existing channels in the workspace
+        channels = self.channel_repository.list_for_workspace(workspace_id)
+        for channel in channels:
+            existing_channel_member = self.channel_member_repository.get(
+                channel.id, payload.user_id
+            )
+            if not existing_channel_member:
+                self.channel_member_repository.create(
+                    ChannelMember(
+                        channel_id=channel.id,
+                        user_id=payload.user_id,
+                        role="member",
+                    )
+                )
+
+        try:
+            self.db.commit()
+        except Exception as exc:
+            self.db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Unable to add member",
+            ) from exc
+
+        self.db.refresh(membership)
+        # broadcast to all channels so connected users see the member update
+        for ch in channels:
+            try:
+                import anyio
+                from app.realtime.connection_manager import realtime_manager
+
+                anyio.from_thread.run(
+                    realtime_manager.broadcast_to_channel,
+                    ch.id,
+                    {"type": "workspace_member_added", "workspace_id": str(workspace_id)},
+                )
+            except Exception:
+                pass
+        return ApiResponse(
+            success=True,
+            message="Member added successfully",
+            data=WorkspaceMemberResponse.model_validate(membership),
         )
