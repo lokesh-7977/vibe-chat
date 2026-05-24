@@ -6,17 +6,22 @@ from app.api.routes.channels import router as channels_router
 from app.api.routes.health import router as health_router
 from app.api.routes.ai_actions import router as ai_actions_router
 from app.api.routes.uploads import router as uploads_router
+from app.api.routes.users import router as users_router
 from app.api.routes.ws import router as ws_router
 from app.api.routes.workspaces import router as workspaces_router
-
-public_router = APIRouter()
-public_router.include_router(health_router, tags=["health"])
+from app.api.routes.grammar import router as grammar_router
 
 api_router = APIRouter()
+public_router = APIRouter()
+
+public_router.include_router(health_router, tags=["health"])
+
 api_router.include_router(auth_router)
+api_router.include_router(grammar_router)
 api_router.include_router(workspaces_router)
 api_router.include_router(channels_router)
 api_router.include_router(activities_router)
 api_router.include_router(ai_actions_router)
 api_router.include_router(uploads_router)
+api_router.include_router(users_router)
 api_router.include_router(ws_router)
