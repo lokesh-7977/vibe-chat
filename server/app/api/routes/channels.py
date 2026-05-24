@@ -88,6 +88,20 @@ def delete_channel(
     return controller.delete_channel(current_user=current_user, channel_id=channel_id)
 
 
+@router.delete(
+    "/{channel_id}/messages",
+    response_model=ApiResponse[None],
+    status_code=status.HTTP_200_OK,
+)
+def delete_channel_messages(
+    channel_id: UUID,
+    _request: Request,
+    current_user: CurrentUserDep,
+    controller: ChannelControllerDep,
+):
+    return controller.delete_channel_messages(current_user=current_user, channel_id=channel_id)
+
+
 @router.get(
     "/{channel_id}/members",
     response_model=ApiResponse[list[ChannelMemberResponse]],
