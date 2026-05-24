@@ -17,4 +17,26 @@ class PresignUploadResponse(BaseModel):
     document_id: UUID
     object_key: str
     upload_url: str
-    file_url: str
+
+
+class ImageUrlResponse(BaseModel):
+    key: str
+    url: str
+    mime_type: str
+    file_name: str
+
+
+class ImageSummaryResponse(BaseModel):
+    key: str
+    summary: str
+
+
+class DocumentSummaryResponse(BaseModel):
+    key: str
+    summary: str
+
+
+class DocumentQaResponse(BaseModel):
+    key: str
+    question: str
+    answer: str
