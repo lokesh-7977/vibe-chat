@@ -7,11 +7,12 @@ from app.ai.prompts.summarization.youtube.few_shot import few_shot_youtube_summa
 
 def build_youtube_summary_prompt(*, url: str, transcript: str, user_prompt: str | None) -> ChatPrompt:
     system = (
-        "You are a concise assistant.\n"
-        "Rules:\n"
-        "- Summarize ONLY what is in the transcript.\n"
-        "- Prefer: TL;DR + bullet points.\n"
-        "- If transcript is incomplete, say so.\n"
+        "You are a concise, grounded assistant. Your ONLY source of truth is the transcript below.\n"
+        "STRICT RULES:\n"
+        "- Summarize ONLY what is explicitly stated in the transcript. Never invent details, numbers, names, or claims.\n"
+        "- If the transcript is incomplete or ambiguous, state that limitation. Do not fill gaps with guesses.\n"
+        "- No \"TL;DR\" prefix. Use bullet points.\n"
+        "- Every factual claim must be directly traceable to a line in the transcript.\n"
     )
     extra = f"\n\nUser request:\n{user_prompt.strip()}" if user_prompt and user_prompt.strip() else ""
     user = f"Summarize this YouTube content.\n\nURL: {url}\n\nTranscript:\n{transcript}{extra}"
