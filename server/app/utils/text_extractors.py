@@ -4,6 +4,7 @@ import io
 import re
 
 from pypdf import PdfReader
+from docx import Document as DocxDocument
 
 
 def extract_text_from_document_bytes(data: bytes, *, mime_type: str) -> str:
@@ -19,6 +20,14 @@ def extract_text_from_document_bytes(data: bytes, *, mime_type: str) -> str:
         text = "\n".join(parts).strip()
         if not text:
             raise RuntimeError("Unable to extract text from PDF")
+        return text
+
+    if mt in {"application/vnd.openxmlformats-officedocument.wordprocessingml.document"}:
+        doc = DocxDocument(io.BytesIO(data))
+        parts = [p.text.strip() for p in doc.paragraphs if (p.text or "").strip()]
+        text = "\n".join(parts).strip()
+        if not text:
+            raise RuntimeError("Unable to extract text from DOCX")
         return text
 
     if mt in {"text/plain", "text/markdown"}:
