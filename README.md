@@ -9,7 +9,8 @@ Monorepo layout:
 
 ```powershell
 cd server
-..\.\.venv\Scripts\uvicorn main:app --reload
+.\.venv\Scripts\python -m pip install -r requirements.txt
+.\.venv\Scripts\uvicorn main:app --reload
 ```
 
 ## Run client
