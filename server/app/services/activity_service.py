@@ -12,10 +12,15 @@ from app.db.schemas.activity import (
 )
 from app.db.schemas.common import ApiResponse
 from app.repositories.activity_repository import ActivityRepository
-from app.repositories.channel_member_repository import ChannelMemberRepository
 from app.repositories.channel_repository import ChannelRepository
 from app.repositories.workspace_repository import WorkspaceRepository
 from app.realtime.connection_manager import realtime_manager
+
+
+def _enrich_activity(activity: Activity) -> ActivityResponse:
+    resp = ActivityResponse.model_validate(activity)
+    resp.actor_name = activity.actor.full_name if activity.actor else None
+    return resp
 
 
 class ActivityService:
@@ -23,28 +28,18 @@ class ActivityService:
         self.db = db
         self.activity_repository = ActivityRepository(db)
         self.channel_repository = ChannelRepository(db)
-        self.channel_member_repository = ChannelMemberRepository(db)
         self.workspace_repository = WorkspaceRepository(db)
 
-    def _require_channel_member(self, current_user: User, channel_id) -> None:
+    def _require_workspace_member(self, current_user: User, channel_id) -> None:
         channel = self.channel_repository.get_by_id(channel_id)
         if not channel:
             raise HTTPException(status_code=404, detail="Channel not found")
 
-        # Must be a workspace member.
         workspaces = self.workspace_repository.list_for_user(current_user.id)
         if not any(ws.id == channel.workspace_id for ws in workspaces):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="You do not have access to this workspace",
-            )
-
-        # Must be a channel member.
-        membership = self.channel_member_repository.get(channel_id, current_user.id)
-        if not membership:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="You are not a member of this channel",
             )
 
     def create_activity(
@@ -53,7 +48,7 @@ class ActivityService:
         channel_id,
         payload: ActivityCreateRequest,
     ) -> ApiResponse[ActivityResponse]:
-        self._require_channel_member(current_user=current_user, channel_id=channel_id)
+        self._require_workspace_member(current_user=current_user, channel_id=channel_id)
         channel = self.channel_repository.get_by_id(channel_id)
         assert channel is not None
 
@@ -84,12 +79,13 @@ class ActivityService:
             ) from exc
 
         self.db.refresh(activity)
+        enriched = _enrich_activity(activity)
         # Broadcast only after persistence.
         event = {
             "type": "activity_created",
             "channel_id": str(channel_id),
             "workspace_id": str(activity.workspace_id),
-            "activity": ActivityResponse.model_validate(activity).model_dump(),
+            "activity": enriched.model_dump(),
         }
         # ActivityService is sync (runs in threadpool); broadcast best-effort.
         try:
@@ -101,7 +97,7 @@ class ActivityService:
         return ApiResponse(
             success=True,
             message="Activity created successfully",
-            data=ActivityResponse.model_validate(activity),
+            data=enriched,
         )
 
     def list_channel_activities(
@@ -111,7 +107,7 @@ class ActivityService:
         limit: int,
         offset: int,
     ) -> ApiResponse[list[ActivityResponse]]:
-        self._require_channel_member(current_user=current_user, channel_id=channel_id)
+        self._require_workspace_member(current_user=current_user, channel_id=channel_id)
         activities = self.activity_repository.list_for_channel(
             channel_id=channel_id,
             limit=limit,
@@ -120,7 +116,7 @@ class ActivityService:
         return ApiResponse(
             success=True,
             message="Activities retrieved successfully",
-            data=[ActivityResponse.model_validate(a) for a in activities],
+            data=[_enrich_activity(a) for a in activities],
         )
 
     def get_activity(
@@ -131,11 +127,11 @@ class ActivityService:
         activity = self.activity_repository.get_by_id(activity_id)
         if not activity or activity.deleted_at is not None:
             raise HTTPException(status_code=404, detail="Activity not found")
-        self._require_channel_member(current_user=current_user, channel_id=activity.channel_id)
+        self._require_workspace_member(current_user=current_user, channel_id=activity.channel_id)
         return ApiResponse(
             success=True,
             message="Activity retrieved successfully",
-            data=ActivityResponse.model_validate(activity),
+            data=_enrich_activity(activity),
         )
 
     def update_activity(
@@ -147,7 +143,7 @@ class ActivityService:
         activity = self.activity_repository.get_by_id(activity_id)
         if not activity or activity.deleted_at is not None:
             raise HTTPException(status_code=404, detail="Activity not found")
-        self._require_channel_member(current_user=current_user, channel_id=activity.channel_id)
+        self._require_workspace_member(current_user=current_user, channel_id=activity.channel_id)
 
         if activity.actor_id != current_user.id:
             raise HTTPException(
@@ -170,7 +166,7 @@ class ActivityService:
         return ApiResponse(
             success=True,
             message="Activity updated successfully",
-            data=ActivityResponse.model_validate(activity),
+            data=_enrich_activity(activity),
         )
 
     def delete_activity(
@@ -181,7 +177,7 @@ class ActivityService:
         activity = self.activity_repository.get_by_id(activity_id)
         if not activity or activity.deleted_at is not None:
             raise HTTPException(status_code=404, detail="Activity not found")
-        self._require_channel_member(current_user=current_user, channel_id=activity.channel_id)
+        self._require_workspace_member(current_user=current_user, channel_id=activity.channel_id)
 
         if activity.actor_id != current_user.id:
             raise HTTPException(
