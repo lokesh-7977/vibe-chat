@@ -9,8 +9,8 @@ import re
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.ai.services.groq_client import GroqChatService
-from app.ai.services.hf_embeddings import HfEmbeddingsService, normalize_embedding_dim
+from app.ai.services.local_embeddings import HuggingFaceEmbeddingsService
+from app.ai.services.embeddings_utils import normalize_embedding_dim
 from app.ai.types import RetrievedSource, SourceDocument
 from app.ai.prompts.rag.prompt import build_rag_qa_prompt
 from app.core.config import get_settings
@@ -27,7 +27,7 @@ from app.ai.services.youtube_transcript import fetch_youtube_transcript_text
 
 
 class RagService:
-    def __init__(self, db: Session, *, embeddings: HfEmbeddingsService, groq: GroqChatService) -> None:
+    def __init__(self, db: Session, *, embeddings: HuggingFaceEmbeddingsService, groq: object) -> None:
         self.db = db
         self.embeddings = embeddings
         self.groq = groq
@@ -36,7 +36,7 @@ class RagService:
 
     async def _ensure_activity_embeddings(self, *, activities: list[Activity]) -> None:
         settings = get_settings()
-        model_name = f"hf::{settings.hf_embeddings_model}::padded1536"
+        model_name = "local::hashing::1536"
         to_embed: list[Activity] = []
         for a in activities:
             if not a.content:
@@ -83,7 +83,7 @@ class RagService:
 
     async def _ensure_document_embeddings_for_channel(self, *, channel_id: UUID) -> None:
         settings = get_settings()
-        model_name = f"hf::{settings.hf_embeddings_model}::padded1536"
+        model_name = "local::hashing::1536"
 
         docs = self.db.execute(
             select(Document).where(Document.channel_id == channel_id).order_by(Document.created_at.desc())
