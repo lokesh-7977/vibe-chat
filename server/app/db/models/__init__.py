@@ -12,5 +12,7 @@ from app.db.models.memory import ContextualMemory
 from app.db.models.task import Task
 from app.db.models.decision import Decision
 from app.db.models.call import Call, CallParticipant, CallTranscript, CallSummary
+from app.db.models.channel_summary import ChannelSummary
+from app.db.models.content_summary import ContentSummary
 
-__all__ = ["User" , "Workspace", "WorkspaceMember", "Channel", "ChannelMember", "Activity", "Document", "DocumentChunk", "DocumentEmbedding", "ActivityEmbedding", "AIInteraction", "AIRun", "AIRunStep", "ContextualMemory", "Task", "Decision", "Call", "CallParticipant", "CallTranscript", "CallSummary"]
+__all__ = ["User" , "Workspace", "WorkspaceMember", "Channel", "ChannelMember", "Activity", "Document", "DocumentChunk", "DocumentEmbedding", "ActivityEmbedding", "AIInteraction", "AIRun", "AIRunStep", "ContextualMemory", "Task", "Decision", "Call", "CallParticipant", "CallTranscript", "CallSummary", "ChannelSummary", "ContentSummary"]
