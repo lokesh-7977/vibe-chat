@@ -3,6 +3,7 @@ import re
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
+from app.db.models.activity import Activity
 from app.db.models.channel import Channel
 from app.db.models.channel_member import ChannelMember
 from app.db.models.user import User
@@ -86,6 +87,21 @@ class ChannelService:
             ) from exc
 
         self.db.refresh(channel)
+        # broadcast to all existing channels in the workspace so users see the new channel
+        channels = self.channel_repository.list_for_workspace(payload.workspace_id)
+        for ch in channels:
+            if ch.id != channel.id:
+                try:
+                    import anyio
+                    from app.realtime.connection_manager import realtime_manager
+
+                    anyio.from_thread.run(
+                        realtime_manager.broadcast_to_channel,
+                        ch.id,
+                        {"type": "channel_created", "workspace_id": str(payload.workspace_id)},
+                    )
+                except Exception:
+                    pass
         return ApiResponse(
             success=True,
             message="Channel created successfully",
@@ -148,6 +164,43 @@ class ChannelService:
             message="Channel updated successfully",
             data=ChannelResponse.model_validate(channel),
         )
+
+    def delete_channel_messages(
+        self,
+        current_user: User,
+        channel_id,
+    ) -> ApiResponse[None]:
+        channel = self.channel_repository.get_by_id(channel_id)
+        if not channel:
+            raise HTTPException(status_code=404, detail="Channel not found")
+        self._require_workspace_member(current_user=current_user, workspace_id=channel.workspace_id)
+
+        from sqlalchemy import delete
+
+        stmt = delete(Activity).where(Activity.channel_id == channel_id)
+        try:
+            self.db.execute(stmt)
+            self.db.commit()
+        except Exception as exc:
+            self.db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Unable to delete channel messages",
+            ) from exc
+
+        try:
+            import anyio
+            from app.realtime.connection_manager import realtime_manager
+
+            anyio.from_thread.run(
+                realtime_manager.broadcast_to_channel,
+                channel_id,
+                {"type": "channel_messages_deleted", "channel_id": str(channel_id)},
+            )
+        except Exception:
+            pass
+
+        return ApiResponse(success=True, message="All channel messages deleted", data=None)
 
     def delete_channel(
         self,
@@ -216,6 +269,17 @@ class ChannelService:
             raise HTTPException(status_code=400, detail="Unable to add channel member") from exc
 
         self.db.refresh(member)
+        try:
+            import anyio
+            from app.realtime.connection_manager import realtime_manager
+
+            anyio.from_thread.run(
+                realtime_manager.broadcast_to_channel,
+                payload.channel_id,
+                {"type": "channel_member_added", "channel_id": str(payload.channel_id)},
+            )
+        except Exception:
+            pass
         return ApiResponse(
             success=True,
             message="Channel member added successfully",
@@ -244,4 +308,15 @@ class ChannelService:
             self.db.rollback()
             raise HTTPException(status_code=400, detail="Unable to remove channel member") from exc
 
+        try:
+            import anyio
+            from app.realtime.connection_manager import realtime_manager
+
+            anyio.from_thread.run(
+                realtime_manager.broadcast_to_channel,
+                channel_id,
+                {"type": "channel_member_removed", "channel_id": str(channel_id)},
+            )
+        except Exception:
+            pass
         return ApiResponse(success=True, message="Channel member removed successfully", data=None)
