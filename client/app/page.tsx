@@ -1,5 +1,5 @@
-import { redirect } from "next/navigation";
+import AuthAwareHome from "./auth-aware-home";
 
 export default function Home() {
-  redirect("/chats");
+  return <AuthAwareHome />;
 }
