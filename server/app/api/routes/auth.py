@@ -2,7 +2,7 @@ from fastapi import APIRouter, Request, status
 from app.api.dependencies.auth import AuthControllerDep
 from app.db.schemas.auth import AuthTokensResponse, RefreshTokenResponse
 from app.db.schemas.common import ApiResponse
-from app.db.schemas.user import UserCreate, UserLogin, UserResponse
+from app.db.schemas.user import UserCreate, UserLogin, UserResponse, UserUpdate
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -55,6 +55,19 @@ def get_profile(
     controller: AuthControllerDep,
 ):
     return controller.get_profile(request=request)
+
+
+@router.put(
+    "/update-profile",
+    response_model=ApiResponse[UserResponse],
+    status_code=status.HTTP_200_OK,
+)
+def update_profile(
+    payload: UserUpdate,
+    request: Request,
+    controller: AuthControllerDep,
+):
+    return controller.update_profile(payload=payload, request=request)
 
 
 @router.delete(
