@@ -2,7 +2,7 @@ from fastapi import Request
 
 from app.db.schemas.auth import AuthTokensResponse, RefreshTokenResponse
 from app.db.schemas.common import ApiResponse
-from app.db.schemas.user import UserCreate, UserLogin, UserResponse
+from app.db.schemas.user import UserCreate, UserLogin, UserResponse, UserUpdate
 from app.services.auth_service import AuthService
 
 
@@ -29,6 +29,13 @@ class AuthController:
 
     def get_profile(self, request: Request) -> ApiResponse[UserResponse]:
         return self.auth_service.get_profile(request=request)
+
+    def update_profile(
+        self,
+        payload: UserUpdate,
+        request: Request,
+    ) -> ApiResponse[UserResponse]:
+        return self.auth_service.update_profile(payload=payload, request=request)
 
     def delete_account(self, request: Request) -> ApiResponse[None]:
         return self.auth_service.delete_account(request=request)
