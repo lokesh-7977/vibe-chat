@@ -6,7 +6,14 @@ from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.exc import OperationalError
 from starlette.exceptions import HTTPException as StarletteHTTPException
-from starlette.middleware.sessions import SessionMiddleware
+
+try:
+    from starlette.middleware.sessions import SessionMiddleware
+except Exception:  # itsdangerous may be missing -> avoid crashing at import
+    SessionMiddleware = None
+    logging.getLogger(__name__).warning(
+        "starlette.middleware.sessions.SessionMiddleware unavailable (itsdangerous missing). Session middleware will not be added."
+    )
 
 from app.api.router import api_router, public_router
 from app.core.config import get_settings
@@ -14,7 +21,6 @@ from app.core.rate_limiter import RateLimitMiddleware
 from app.db.schemas.common import ApiResponse
 
 logger = logging.getLogger(__name__)
-
 
 def create_app() -> FastAPI:
     settings = get_settings()
@@ -33,12 +39,15 @@ def create_app() -> FastAPI:
             allow_headers=["*"],
         )
 
-    application.add_middleware(
-        SessionMiddleware,
-        secret_key=settings.secret_key,
-        https_only=True,
-        same_site="strict",
-    )
+    if SessionMiddleware is not None:
+        application.add_middleware(
+            SessionMiddleware,
+            secret_key=settings.secret_key,
+            https_only=not settings.debug,
+            same_site="strict",
+        )
+    else:
+        logger.warning("Skipping session middleware because SessionMiddleware is unavailable.")
     auth_prefix = f"{settings.api_prefix}/auth"
     application.add_middleware(
         RateLimitMiddleware,
