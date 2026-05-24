@@ -3,10 +3,10 @@ from __future__ import annotations
 import re
 
 from youtube_transcript_api import YouTubeTranscriptApi
+from youtube_transcript_api._errors import NoTranscriptFound
 
 
 def _extract_video_id(url: str) -> str:
-    # supports youtu.be/<id> or youtube.com/watch?v=<id>
     m = re.search(r"youtu\.be/([A-Za-z0-9_-]{6,})", url)
     if m:
         return m.group(1)
@@ -16,8 +16,20 @@ def _extract_video_id(url: str) -> str:
     raise RuntimeError("Unable to extract YouTube video id")
 
 
+def _pick_transcript_language(video_id: str) -> list[str]:
+    try:
+        listing = YouTubeTranscriptApi().list(video_id)
+        available = listing._manually_created_transcripts | listing._generated_transcripts
+        candidates = ["en", "en-US", "en-GB", "hi", "auto"]
+        for code in candidates:
+            if code in available:
+                return [code]
+        return [next(iter(available))]
+    except Exception:
+        return ["en", "hi"]
+
+
 async def fetch_youtube_transcript_text(url: str) -> str:
-    # Prefer LangChain loader when available.
     try:
         from langchain_community.document_loaders import YoutubeLoader
 
@@ -30,12 +42,13 @@ async def fetch_youtube_transcript_text(url: str) -> str:
         pass
 
     video_id = _extract_video_id(url)
+    languages = _pick_transcript_language(video_id)
     try:
-        items = YouTubeTranscriptApi.get_transcript(video_id)
-    except Exception as exc:
+        transcript = YouTubeTranscriptApi().fetch(video_id, languages=languages)
+    except NoTranscriptFound as exc:
         raise RuntimeError("Unable to fetch YouTube transcript") from exc
 
-    text = "\n".join(i.get("text", "") for i in items if i.get("text"))
+    text = "\n".join(s.text for s in transcript if s.text)
     if not text.strip():
         raise RuntimeError("Empty transcript")
     return text[:200_000]
