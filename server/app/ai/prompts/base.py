@@ -10,7 +10,8 @@ Role = Literal["system", "user", "assistant", "tool"]
 
 class ChatMessage(BaseModel):
     role: Role
-    content: str = ""
+    # Allow either plain text or OpenAI-style multi-part content (e.g. image_url).
+    content: Any = ""
     tool_call_id: str | None = None
     tool_calls: list[dict] | None = None
 
