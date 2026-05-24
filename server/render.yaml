@@ -6,6 +6,7 @@ services:
     branch: master
     dockerfilePath: server/Dockerfile
     dockerContext: server
+    healthCheckPath: /api/v1/health
     envVars:
       - key: ENVIRONMENT
         value: production
