@@ -51,6 +51,7 @@ class IntentClassifierService:
             "summarize_youtube",
             "summarize_website",
             "summarize_audio",
+            "summarize_channel",
             "rag_question_answering",
         }:
             return IntentResult(
@@ -96,6 +97,18 @@ class IntentClassifierService:
                 intent="summarize_website",
                 confidence=0.85,
                 reason="Detected website URL",
+                signals=signals,
+            )
+
+        # Channel/conversation summarization
+        summarize_keywords = ["summarize", "summary", "recap", "rollup", "tl;dr", "tldr"]
+        channel_keywords = ["channel", "chat", "conversation", "recent", "messages"]
+        if any(kw in lower for kw in summarize_keywords) and any(kw in lower for kw in channel_keywords):
+            signals["matched_keywords"] = [kw for kw in summarize_keywords + channel_keywords if kw in lower]
+            return IntentResult(
+                intent="summarize_channel",
+                confidence=0.9,
+                reason="Summarization keywords with channel/conversation context",
                 signals=signals,
             )
 
