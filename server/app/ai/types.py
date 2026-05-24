@@ -10,6 +10,7 @@ Intent = Literal[
     "summarize_youtube",
     "summarize_website",
     "summarize_audio",
+    "summarize_channel",
     "rag_question_answering",
     "unknown",
 ]
