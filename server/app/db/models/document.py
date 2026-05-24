@@ -32,7 +32,7 @@ class Document(Base):
     )
 
     file_name: Mapped[str] = mapped_column(String(255), nullable=False)
-    file_url: Mapped[str] = mapped_column(String(1000), nullable=False)
+    object_key: Mapped[str] = mapped_column(String(1000), nullable=False)
     mime_type: Mapped[str] = mapped_column(String(100), nullable=False)
     file_size: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
