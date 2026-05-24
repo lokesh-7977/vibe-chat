@@ -12,7 +12,11 @@ from app.core.config import get_settings
 class PresignedUpload:
     object_key: str
     upload_url: str
-    file_url: str
+
+@dataclass(frozen=True)
+class PresignedView:
+    object_key: str
+    view_url: str
 
 def _get_r2_client():
     settings = get_settings()
@@ -45,10 +49,21 @@ def presign_put_object(*, object_key: str, content_type: str) -> PresignedUpload
         ExpiresIn=settings.r2_presign_expires_seconds,
     )
 
-    if settings.r2_public_base_url:
-        file_url = f"{settings.r2_public_base_url.rstrip('/')}/{object_key}"
-    else:
-        # Fallback: not necessarily publicly readable; still a stable reference.
-        file_url = f"s3://{settings.r2_bucket_name}/{object_key}"
+    return PresignedUpload(object_key=object_key, upload_url=upload_url)
 
-    return PresignedUpload(object_key=object_key, upload_url=upload_url, file_url=file_url)
+
+def presign_get_object(*, object_key: str) -> PresignedView:
+    settings = get_settings()
+    if not settings.r2_bucket_name:
+        raise RuntimeError("R2 bucket not configured")
+
+    client = _get_r2_client()
+    view_url = client.generate_presigned_url(
+        ClientMethod="get_object",
+        Params={
+            "Bucket": settings.r2_bucket_name,
+            "Key": object_key,
+        },
+        ExpiresIn=settings.r2_presign_expires_seconds,
+    )
+    return PresignedView(object_key=object_key, view_url=view_url)
