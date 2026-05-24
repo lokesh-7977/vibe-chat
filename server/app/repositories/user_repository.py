@@ -37,5 +37,12 @@ class UserRepository:
         self.db.refresh(db_user)
         return db_user
 
+    def list_active(self) -> list[User]:
+        return list(
+            self.db.execute(
+                select(User).where(User.is_deleted.is_(False))
+            ).scalars().all()
+        )
+
     def save(self) -> None:
         self.db.commit()
