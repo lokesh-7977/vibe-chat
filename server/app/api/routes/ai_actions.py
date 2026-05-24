@@ -35,9 +35,11 @@ async def stream_ai_action(
             message_id=payload.message_id,
             user_input=payload.input,
             target_language=payload.target_language,
+            private_response=payload.private_response,
+            history=payload.history,
         ):
             if await request.is_disconnected():
-                break
+                continue
             yield chunk
 
     return StreamingResponse(
@@ -49,4 +51,3 @@ async def stream_ai_action(
             "X-Accel-Buffering": "no",
         },
     )
-
