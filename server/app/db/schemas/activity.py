@@ -38,3 +38,4 @@ class ActivityResponse(ActivityBase):
     created_at: datetime
     updated_at: datetime
     deleted_at: datetime | None = None
+    actor_name: str | None = None
