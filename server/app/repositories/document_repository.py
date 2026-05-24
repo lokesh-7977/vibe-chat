@@ -13,6 +13,11 @@ class DocumentRepository:
             select(Document).where(Document.id == document_id)
         ).scalar_one_or_none()
 
+    def get_by_object_key(self, object_key: str) -> Document | None:
+        return self.db.execute(
+            select(Document).where(Document.object_key == object_key)
+        ).scalar_one_or_none()
+
     def list_for_channel(self, channel_id, limit: int, offset: int) -> list[Document]:
         return list(
             self.db.execute(
@@ -27,4 +32,3 @@ class DocumentRepository:
     def create(self, document: Document) -> Document:
         self.db.add(document)
         return document
-
