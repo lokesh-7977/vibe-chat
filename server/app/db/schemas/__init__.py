@@ -41,6 +41,7 @@ from app.db.schemas.embeddings import (
     DocumentEmbeddingUpdate,
 )
 from app.db.schemas.task import TaskCreate, TaskResponse, TaskUpdate
+from app.db.schemas.channel_summary import ChannelSummaryResponse
 from app.db.schemas.user import UserCreate, UserLogin, UserResponse
 from app.db.schemas.workspace import WorkspaceCreate, WorkspaceResponse, WorkspaceUpdate
 from app.db.schemas.workspace_member import WorkspaceMemberCreate, WorkspaceMemberResponse, WorkspaceMemberUpdate
@@ -75,6 +76,7 @@ __all__ = [
     "ChannelCreate",
     "ChannelUpdate",
     "ChannelResponse",
+    "ChannelSummaryResponse",
     "ChannelMemberCreate",
     "ChannelMemberUpdate",
     "ChannelMemberResponse",
