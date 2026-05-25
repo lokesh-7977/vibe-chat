@@ -499,6 +499,11 @@ const chatsSlice = createSlice({
         if (action.payload.channelId !== state.selectedRoomId) {
           room.unread = (room.unread ?? 0) + 1;
         }
+        const idx = state.rooms.indexOf(room);
+        if (idx > 0) {
+          state.rooms.splice(idx, 1);
+          state.rooms.unshift(room);
+        }
       }
     },
     setTyping(

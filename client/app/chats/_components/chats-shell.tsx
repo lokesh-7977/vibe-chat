@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { realtimeClient } from "@/services/realtime";
 import { store } from "@/store";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
-import { clearTyping, loadChats, receiveRealtimeEvent, setTyping, silentRefreshChats } from "@/store/slices/chats-slice";
+import { clearTyping, loadChats, receiveRealtimeEvent, setTyping } from "@/store/slices/chats-slice";
 import { _translatedContents } from "./translate-dialog";
 import { ChatWindow } from "./chat-window";
 import { CreateChannelDialog } from "./create-channel-dialog";
@@ -36,7 +36,6 @@ export default function ChatsShell() {
     realtimeClient.connect();
 
     const typingTimeouts = new Map<string, ReturnType<typeof setTimeout>>();
-    let silentRefreshTimer: ReturnType<typeof setTimeout> | null = null;
 
     const unsubscribe = realtimeClient.subscribe((event) => {
       if (event.type === "error") return;
@@ -106,12 +105,6 @@ export default function ChatsShell() {
           }),
         );
 
-        // Debounced silent refresh to keep room list in sync
-        if (silentRefreshTimer) clearTimeout(silentRefreshTimer);
-        silentRefreshTimer = setTimeout(() => {
-          store.dispatch(silentRefreshChats());
-        }, 2000);
-
         return;
       }
     });
@@ -119,7 +112,6 @@ export default function ChatsShell() {
     return () => {
       unsubscribe();
       realtimeClient.disconnect();
-      if (silentRefreshTimer) clearTimeout(silentRefreshTimer);
     };
   }, [dispatch, refresh]);
 
