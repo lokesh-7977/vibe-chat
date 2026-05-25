@@ -45,5 +45,4 @@ build/
 *.log
 .env
 .venv/
-app/db/migrations/versions/
-server/app/db/migrations/versions/
+# app/db/migrations/versions/
