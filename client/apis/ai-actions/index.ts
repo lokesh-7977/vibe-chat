@@ -1,6 +1,7 @@
 import axiosInstance from "../../services/axios";
 import type { AIActionStreamRequest, UUID } from "../../types";
 import { aiActionQueryKeys } from "./query.keys";
+import { store } from "../../store";
 
 export * from "./query.keys";
 
@@ -28,6 +29,14 @@ export async function streamAiAction(
   return res.data;
 }
 
+function getAuthHeaders(): Record<string, string> {
+  const token = store.getState().auth.accessToken;
+  return {
+    "Content-Type": "application/json",
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+}
+
 export async function streamAiActionBody(
   channelId: UUID,
   payload: AIActionStreamRequest,
@@ -37,7 +46,7 @@ export async function streamAiActionBody(
   const res = await fetch(`${base}${q.url}`, {
     method: "POST",
     credentials: "include",
-    headers: { "Content-Type": "application/json" },
+    headers: getAuthHeaders(),
     body: JSON.stringify(toServerPayload(payload)),
   });
   if (!res.ok) throw new Error(`Request failed (${res.status})`);
@@ -53,7 +62,7 @@ export async function streamAiActionStream(
   const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000"}${q.url}`, {
     method: "POST",
     credentials: "include",
-    headers: { "Content-Type": "application/json" },
+    headers: getAuthHeaders(),
     body: JSON.stringify(toServerPayload(payload)),
   });
   if (!res.ok) throw new Error(`Request failed (${res.status})`);
