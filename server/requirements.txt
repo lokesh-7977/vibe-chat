@@ -13,9 +13,7 @@ python-dotenv
 pydantic
 pydantic-settings
 pydantic[email]
-pytest
 httpx
-docx
 langchain
 langchain-community
 langgraph
