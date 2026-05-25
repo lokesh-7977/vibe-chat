@@ -70,3 +70,9 @@ export async function addWorkspaceMember(
   );
   return res.data;
 }
+
+export async function removeWorkspaceMember(workspaceId: UUID, userId: UUID) {
+  const q = workspaceQueryKeys.removeMember(workspaceId, userId);
+  const res = await axiosInstance.delete<ApiResponse<null>>(q.url);
+  return res.data;
+}

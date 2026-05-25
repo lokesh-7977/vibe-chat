@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { LoaderCircle, Plus, UserMinus, UserRound, X } from "lucide-react";
+import { Crown, LoaderCircle, Plus, UserRound, X } from "lucide-react";
 
 import { addChannelMember, listChannelMembers, removeChannelMember } from "@/apis/channels";
 import { listUsers } from "@/apis/users";
@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/providers/toast-provider";
+import { useAppSelector } from "@/store/hooks";
 import type { ChannelMemberResponse, UUID, UserResponse } from "@/types";
 
 export function ChannelMemberDialog({
@@ -29,6 +30,7 @@ export function ChannelMemberDialog({
   channelName: string;
 }) {
   const { toast } = useToast();
+  const currentUserId = useAppSelector((s) => s.auth.user?.id);
   const [users, setUsers] = useState<UserResponse[]>([]);
   const [channelMembers, setChannelMembers] = useState<ChannelMemberResponse[]>([]);
   const [search, setSearch] = useState("");
@@ -154,19 +156,28 @@ export function ChannelMemberDialog({
                               </p>
                             </div>
                           </div>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="shrink-0 ml-2 text-muted-foreground hover:text-destructive"
-                            disabled={actionId === m.userId}
-                            onClick={() => handleRemove(m.userId)}
-                          >
-                            {actionId === m.userId ? (
-                              <LoaderCircle className="size-3.5 animate-spin" />
-                            ) : (
-                              <X className="size-3.5" />
-                            )}
-                          </Button>
+                          {m.role === "owner" ? (
+                            <span className="flex shrink-0 items-center gap-1 text-xs text-muted-foreground ml-2">
+                              <Crown className="size-3.5" />
+                              Owner
+                            </span>
+                          ) : m.userId === currentUserId ? (
+                            <span className="text-xs text-muted-foreground ml-2">You</span>
+                          ) : (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="shrink-0 ml-2 text-muted-foreground hover:text-destructive"
+                              disabled={actionId === m.userId}
+                              onClick={() => handleRemove(m.userId)}
+                            >
+                              {actionId === m.userId ? (
+                                <LoaderCircle className="size-3.5 animate-spin" />
+                              ) : (
+                                <X className="size-3.5" />
+                              )}
+                            </Button>
+                          )}
                         </div>
                       );
                     })}

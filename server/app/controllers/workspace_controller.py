@@ -78,3 +78,15 @@ class WorkspaceController:
             workspace_id=workspace_id,
             payload=payload,
         )
+
+    def remove_member(
+        self,
+        current_user: User,
+        workspace_id,
+        user_id,
+    ) -> ApiResponse[None]:
+        return self.workspace_service.remove_member(
+            current_user=current_user,
+            workspace_id=workspace_id,
+            user_id=user_id,
+        )

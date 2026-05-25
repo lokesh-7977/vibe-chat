@@ -33,3 +33,6 @@ class WorkspaceMemberRepository:
             )
         ).scalar_one_or_none()
 
+    def delete(self, member: WorkspaceMember) -> None:
+        self.db.delete(member)
+

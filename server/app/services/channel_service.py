@@ -301,6 +301,18 @@ class ChannelService:
         if not member:
             raise HTTPException(status_code=404, detail="Channel member not found")
 
+        if channel.created_by_id and member.user_id == channel.created_by_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Cannot remove the channel owner",
+            )
+
+        if member.user_id == current_user.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Cannot remove yourself from the channel",
+            )
+
         self.channel_member_repository.delete(member)
         try:
             self.db.commit()

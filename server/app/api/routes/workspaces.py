@@ -123,3 +123,22 @@ def add_workspace_member(
         workspace_id=workspace_id,
         payload=payload,
     )
+
+
+@router.delete(
+    "/{workspace_id}/members/{user_id}",
+    response_model=ApiResponse[None],
+    status_code=status.HTTP_200_OK,
+)
+def remove_workspace_member(
+    workspace_id: UUID,
+    user_id: UUID,
+    _request: Request,
+    current_user: CurrentUserDep,
+    controller: WorkspaceControllerDep,
+):
+    return controller.remove_member(
+        current_user=current_user,
+        workspace_id=workspace_id,
+        user_id=user_id,
+    )

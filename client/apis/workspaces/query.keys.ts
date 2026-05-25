@@ -34,5 +34,9 @@ export const workspaceQueryKeys = {
     key: ["workspaces", "members", "add", workspaceId] as const,
     url: `/workspaces/${workspaceId}/members`,
   }),
+  removeMember: (workspaceId: string, userId: string): QueryDef<readonly ["workspaces", "members", "remove", string, string]> => ({
+    key: ["workspaces", "members", "remove", workspaceId, userId] as const,
+    url: `/workspaces/${workspaceId}/members/${userId}`,
+  }),
 } as const;
 

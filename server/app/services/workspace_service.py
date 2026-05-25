@@ -313,3 +313,69 @@ class WorkspaceService:
             message="Member added successfully",
             data=WorkspaceMemberResponse.model_validate(membership),
         )
+
+    def remove_member(
+        self,
+        current_user: User,
+        workspace_id,
+        user_id,
+    ) -> ApiResponse[None]:
+        workspace = self.workspace_repository.get_by_id(workspace_id)
+        if not workspace:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Workspace not found",
+            )
+
+        if workspace.owner_id != current_user.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only the workspace owner can remove members",
+            )
+
+        member = self.workspace_member_repository.get_by_workspace_and_user(
+            workspace_id, user_id
+        )
+        if not member:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Workspace member not found",
+            )
+
+        if member.user_id == workspace.owner_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Cannot remove the workspace owner",
+            )
+
+        if member.user_id == current_user.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Cannot remove yourself from the workspace",
+            )
+
+        self.workspace_member_repository.delete(member)
+        try:
+            self.db.commit()
+        except Exception as exc:
+            self.db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Unable to remove workspace member",
+            ) from exc
+
+        # broadcast to all channels so connected users see the update
+        channels = self.channel_repository.list_for_workspace(workspace_id)
+        for ch in channels:
+            try:
+                import anyio
+                from app.realtime.connection_manager import realtime_manager
+
+                anyio.from_thread.run(
+                    realtime_manager.broadcast_to_channel,
+                    ch.id,
+                    {"type": "workspace_member_removed", "workspace_id": str(workspace_id)},
+                )
+            except Exception:
+                pass
+        return ApiResponse(success=True, message="Member removed successfully", data=None)
