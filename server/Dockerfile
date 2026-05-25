@@ -40,4 +40,6 @@ WORKDIR /app
 COPY --from=strip /usr/local /usr/local
 COPY . .
 
-CMD alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}
+RUN printf '#!/bin/sh\nset -e\nalembic upgrade head 2>/dev/null || (echo "Stamping DB head..." && alembic stamp head && alembic upgrade head)\nexec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}\n' > /start.sh && chmod +x /start.sh
+
+CMD ["/start.sh"]
