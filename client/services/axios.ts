@@ -18,6 +18,14 @@ const AUTH_REFRESH_PATH = "/auth/refresh";
 const apiBaseUrl =
   process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
 
+export function getAuthHeaders(): Record<string, string> {
+  const token = store.getState().auth.accessToken;
+  return {
+    "Content-Type": "application/json",
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+}
+
 const instance: AxiosInstance = axios.create({
   baseURL: apiBaseUrl,
   timeout: DEFAULT_TIMEOUT_MS,

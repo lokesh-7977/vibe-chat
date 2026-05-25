@@ -1,4 +1,4 @@
-import axiosInstance from "../../services/axios";
+import axiosInstance, { getAuthHeaders } from "../../services/axios";
 import type {
   ApiResponse,
   DocumentResponse,
@@ -44,7 +44,7 @@ export async function streamSummarizeImage(key: string, prompt?: string | null) 
   const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000"}${q.url}`, {
     method: "POST",
     credentials: "include",
-    headers: { "Content-Type": "application/json" },
+    headers: getAuthHeaders(),
     body: JSON.stringify({ prompt: prompt ?? null }),
   });
   if (!res.ok) throw new Error(`Request failed (${res.status})`);
@@ -67,7 +67,7 @@ export async function streamSummarizeDocument(key: string, prompt?: string | nul
   const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000"}${q.url}`, {
     method: "POST",
     credentials: "include",
-    headers: { "Content-Type": "application/json" },
+    headers: getAuthHeaders(),
     body: JSON.stringify({ prompt: prompt ?? null }),
   });
   if (!res.ok) throw new Error(`Request failed (${res.status})`);
@@ -80,7 +80,7 @@ export async function streamDocumentQa(key: string, question: string) {
   const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000"}${q.url}`, {
     method: "POST",
     credentials: "include",
-    headers: { "Content-Type": "application/json" },
+    headers: getAuthHeaders(),
     body: JSON.stringify({ question }),
   });
   if (!res.ok) throw new Error(`Request failed (${res.status})`);

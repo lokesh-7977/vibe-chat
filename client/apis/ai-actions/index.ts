@@ -1,7 +1,6 @@
-import axiosInstance from "../../services/axios";
+import axiosInstance, { getAuthHeaders } from "../../services/axios";
 import type { AIActionStreamRequest, UUID } from "../../types";
 import { aiActionQueryKeys } from "./query.keys";
-import { store } from "../../store";
 
 export * from "./query.keys";
 
@@ -27,14 +26,6 @@ export async function streamAiAction(
     timeout: timeoutMs,
   });
   return res.data;
-}
-
-function getAuthHeaders(): Record<string, string> {
-  const token = store.getState().auth.accessToken;
-  return {
-    "Content-Type": "application/json",
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-  };
 }
 
 export async function streamAiActionBody(
