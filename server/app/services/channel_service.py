@@ -12,6 +12,7 @@ from app.db.schemas.channel_member import ChannelMemberCreate, ChannelMemberResp
 from app.db.schemas.common import ApiResponse
 from app.repositories.channel_member_repository import ChannelMemberRepository
 from app.repositories.channel_repository import ChannelRepository
+from app.repositories.workspace_member_repository import WorkspaceMemberRepository
 from app.repositories.workspace_repository import WorkspaceRepository
 
 
@@ -28,6 +29,7 @@ class ChannelService:
         self.workspace_repository = WorkspaceRepository(db)
         self.channel_repository = ChannelRepository(db)
         self.channel_member_repository = ChannelMemberRepository(db)
+        self.workspace_member_repository = WorkspaceMemberRepository(db)
 
     def _require_workspace_member(self, current_user: User, workspace_id) -> None:
         workspaces = self.workspace_repository.list_for_user(current_user.id)
@@ -236,10 +238,15 @@ class ChannelService:
             raise HTTPException(status_code=404, detail="Channel not found")
         self._require_workspace_member(current_user=current_user, workspace_id=channel.workspace_id)
         members = self.channel_member_repository.list_for_channel(channel_id)
+        workspace_member_ids = {
+            m.user_id
+            for m in self.workspace_member_repository.list_for_workspace(channel.workspace_id)
+        }
+        filtered = [m for m in members if m.user_id in workspace_member_ids]
         return ApiResponse(
             success=True,
             message="Channel members retrieved successfully",
-            data=[ChannelMemberResponse.model_validate(m) for m in members],
+            data=[ChannelMemberResponse.model_validate(m) for m in filtered],
         )
 
     def add_channel_member(

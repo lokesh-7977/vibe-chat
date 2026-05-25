@@ -1,7 +1,7 @@
 import { createSlice, type PayloadAction } from "@reduxjs/toolkit";
 import type { UserResponse } from "../../types";
 
-const STORAGE_KEY = "vibe-chat-auth";
+const STORAGE_KEY = "aura-chat-auth";
 
 function loadFromSession(): { accessToken: string | null; user: UserResponse | null } {
   if (typeof window === "undefined") return { accessToken: null, user: null };

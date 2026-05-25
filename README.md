@@ -1,4 +1,4 @@
-# vibe-chat
+# aura-chat
 
 Monorepo layout:
 

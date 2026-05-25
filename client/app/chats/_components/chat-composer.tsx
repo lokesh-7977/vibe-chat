@@ -1,8 +1,9 @@
 "use client";
 
 import { useRef, useState, useEffect } from "react";
-import { Paperclip, SendHorizontal, SmilePlus, Sparkles } from "lucide-react";
+import { Paperclip, SendHorizontal, SmilePlus, Sparkles, Bot } from "lucide-react";
 
+import { listChannelMembers } from "@/apis/channels";
 import { presignUpload, completeUpload } from "@/apis/uploads";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,6 +12,7 @@ import { realtimeClient } from "@/services/realtime";
 import axiosInstance from "@/services/axios";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { sendChatMessage, sendPrivateAiMessage } from "@/store/slices/chats-slice";
+import type { ChannelMemberResponse } from "@/types";
 
 const EMOJIS = [
   "😀", "😂", "🤣", "❤️", "😍", "🤩", "😎", "🙌",
@@ -29,12 +31,15 @@ export function ChatComposer({ roomName }: { roomName: string }) {
   const { toast } = useToast();
   const selectedRoomId = useAppSelector((state) => state.chats.selectedRoomId);
   const currentWorkspaceId = useAppSelector((state) => state.chats.currentWorkspaceId);
+  const usersById = useAppSelector((state) => state.chats.usersById);
   const [message, setMessage] = useState("");
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showAttachMenu, setShowAttachMenu] = useState(false);
   const [showMentionMenu, setShowMentionMenu] = useState(false);
   const [mentionStart, setMentionStart] = useState<number | null>(null);
+  const [mentionQuery, setMentionQuery] = useState("");
   const [uploadState, setUploadState] = useState<UploadState | null>(null);
+  const [channelMembers, setChannelMembers] = useState<ChannelMemberResponse[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
@@ -56,11 +61,18 @@ export function ChatComposer({ roomName }: { roomName: string }) {
     return () => document.removeEventListener("mousedown", handleClick);
   }, []);
 
+  useEffect(() => {
+    if (!selectedRoomId) return;
+    listChannelMembers(selectedRoomId)
+      .then((res) => setChannelMembers(res.data ?? []))
+      .catch(() => {});
+  }, [selectedRoomId]);
+
   function submitMessage() {
     const trimmed = message.trim();
     if (!trimmed) return;
 
-    if (trimmed.toLowerCase().startsWith("@vibe-chat")) {
+    if (trimmed.toLowerCase().startsWith("@aura-chat")) {
       dispatch(sendPrivateAiMessage({ channelId: selectedRoomId, content: trimmed }));
     } else {
       dispatch(sendChatMessage({ channelId: selectedRoomId, content: trimmed }));
@@ -296,8 +308,7 @@ export function ChatComposer({ roomName }: { roomName: string }) {
               setMessage(next);
               realtimeClient.typingStarted(selectedRoomId);
 
-              // Basic mention suggestion: if the user is typing a token that starts with "@", suggest "@vibe-chat".
-              // We only support one mention today.
+              // Basic mention suggestion: if the user is typing a token that starts with "@", suggest channel members and @aura-chat.
               const caret = event.target.selectionStart ?? next.length;
               const upto = next.slice(0, caret);
               const match = upto.match(/(^|\s)(@[^\s@]*)$/);
@@ -306,32 +317,79 @@ export function ChatComposer({ roomName }: { roomName: string }) {
                 const start = caret - token.length;
                 setMentionStart(start);
                 const q = token.slice(1).toLowerCase();
-                setShowMentionMenu(q.length === 0 || "vibe-chat".startsWith(q));
+                setMentionQuery(q);
+                setShowMentionMenu(true);
               } else {
                 setShowMentionMenu(false);
                 setMentionStart(null);
+                setMentionQuery("");
               }
             }}
           />
           {showMentionMenu && (
             <div className="absolute bottom-full left-0 z-30 mb-2">
-              <div className="w-56 rounded-lg border border-whatsapp-border bg-popover p-1 shadow-lg">
-                <button
-                  type="button"
-                  className="flex w-full items-center justify-between gap-2 rounded-md px-3 py-2 text-left text-xs hover:bg-whatsapp-muted"
-                  onClick={() => {
-                    const start = mentionStart ?? 0;
-                    const before = message.slice(0, start);
-                    const after = message.slice(start).replace(/^@[^\s@]*/, "");
-                    const next = `${before}@vibe-chat ${after}`;
-                    setMessage(next);
-                    setShowMentionMenu(false);
-                    setMentionStart(null);
-                  }}
-                >
-                  <span className="font-semibold text-foreground">@vibe-chat</span>
-                  <span className="text-[10px] text-muted-foreground">Private AI</span>
-                </button>
+              <div className="w-64 rounded-lg border border-whatsapp-border bg-popover p-1 shadow-lg max-h-48 overflow-y-auto">
+                {(!mentionQuery || "aura-chat".startsWith(mentionQuery)) && (
+                  <button
+                    type="button"
+                    className="flex w-full items-center justify-between gap-2 rounded-md px-3 py-2 text-left text-xs hover:bg-whatsapp-muted"
+                    onClick={() => {
+                      const start = mentionStart ?? 0;
+                      const before = message.slice(0, start);
+                      const after = message.slice(start).replace(/^@[^\s@]*/, "");
+                      const next = `${before}@aura-chat ${after}`;
+                      setMessage(next);
+                      setShowMentionMenu(false);
+                      setMentionStart(null);
+                    }}
+                  >
+                    <span className="flex items-center gap-2">
+                      <Bot className="size-4 text-whatsapp-deep" />
+                      <span className="font-semibold text-foreground">@aura-chat</span>
+                    </span>
+                    <span className="text-[10px] text-muted-foreground">Private AI</span>
+                  </button>
+                )}
+                {channelMembers
+                  .filter((m) => {
+                    const user = usersById[m.userId];
+                    if (!user) return false;
+                    return !mentionQuery || user.username.toLowerCase().startsWith(mentionQuery) || user.fullName.toLowerCase().startsWith(mentionQuery);
+                  })
+                  .slice(0, 10)
+                  .map((m) => {
+                    const user = usersById[m.userId];
+                    if (!user) return null;
+                    return (
+                      <button
+                        key={m.userId}
+                        type="button"
+                        className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-xs hover:bg-whatsapp-muted"
+                        onClick={() => {
+                          const start = mentionStart ?? 0;
+                          const before = message.slice(0, start);
+                          const after = message.slice(start).replace(/^@[^\s@]*/, "");
+                          const next = `${before}@${user.username} ${after}`;
+                          setMessage(next);
+                          setShowMentionMenu(false);
+                          setMentionStart(null);
+                        }}
+                      >
+                        <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-whatsapp-muted text-[10px] font-medium">
+                          {user.fullName.charAt(0).toUpperCase()}
+                        </span>
+                        <span className="font-medium">@{user.username}</span>
+                        <span className="text-muted-foreground truncate">{user.fullName}</span>
+                      </button>
+                    );
+                  })}
+                {channelMembers.filter((m) => {
+                  const user = usersById[m.userId];
+                  if (!user) return false;
+                  return !mentionQuery || user.username.toLowerCase().startsWith(mentionQuery) || user.fullName.toLowerCase().startsWith(mentionQuery);
+                }).length === 0 && mentionQuery && !"aura-chat".startsWith(mentionQuery) && (
+                  <p className="px-3 py-2 text-xs text-muted-foreground">No users found</p>
+                )}
               </div>
             </div>
           )}

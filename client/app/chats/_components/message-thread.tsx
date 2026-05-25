@@ -25,6 +25,7 @@ const ytPattern = /(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]+)/;
 const markdownImagePattern = /!\[([^\]]*)\]\(([^)\s]+)\)/g;
 const r2KeyPattern = /(r2:\/\/[^\n]+)/g;
 const attachmentLabelLinePattern = /^[ \t]*(?:\u{1F4CE}|\u{1F3B5})\s[^\n]*$/gmu;
+const mentionPattern = /@(\w+)/g;
 
 function extractUrls(text: string): string[] {
   return Array.from(text.matchAll(urlExtractPattern))
@@ -518,21 +519,42 @@ function MessageText({
 
       {stripped.length > 0 && (
         <p className="whitespace-pre-wrap wrap-break text-sm leading-6">
-          {parts.map((part) =>
-            urlPattern.test(part) ? (
-              <a
-                key={part}
-                className="font-medium text-whatsapp-deep underline underline-offset-4"
-                href={normalizeDisplayUrl(part)}
-                rel="noreferrer"
-                target="_blank"
-              >
-                {normalizeDisplayUrl(part)}
-              </a>
-            ) : (
-              part
-            ),
-          )}
+          {parts.map((part) => {
+            if (urlPattern.test(part)) {
+              return (
+                <a
+                  key={part}
+                  className="font-medium text-whatsapp-deep underline underline-offset-4"
+                  href={part}
+                  rel="noreferrer"
+                  target="_blank"
+                >
+                  {part}
+                </a>
+              );
+            }
+            const segments = part.split(mentionPattern);
+            if (segments.length === 1) return <span key={part}>{part}</span>;
+            const elements: React.ReactNode[] = [];
+            let idx = 0;
+            for (let i = 0; i < segments.length; i++) {
+              if (i % 2 === 0) {
+                if (segments[i]) elements.push(<span key={idx++}>{segments[i]}</span>);
+              } else {
+                const name = segments[i];
+                if (name === "aura-chat") {
+                  elements.push(
+                    <span key={idx++} className="rounded-sm bg-purple-100 px-0.5 font-semibold text-purple-700 dark:bg-purple-900/30 dark:text-purple-400">@{name}</span>,
+                  );
+                } else {
+                  elements.push(
+                    <span key={idx++} className="rounded-sm bg-blue-100 px-0.5 font-semibold text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">@{name}</span>,
+                  );
+                }
+              }
+            }
+            return <span key={part}>{elements}</span>;
+          })}
         </p>
       )}
     </div>
