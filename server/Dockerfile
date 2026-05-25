@@ -9,7 +9,7 @@ WORKDIR /app
 FROM base AS download
 
 COPY requirements.txt .
-RUN pip download --no-cache-dir --root-user-action=ignore \
+RUN pip download --no-cache-dir \
     -r requirements.txt -d /wheels
 
 # Stage 3: install packages from local wheels
