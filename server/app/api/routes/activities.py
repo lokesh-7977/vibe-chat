@@ -1,11 +1,14 @@
 from uuid import UUID
 
+import anyio
+
 from fastapi import APIRouter, Query, Request, status
 
 from app.api.dependencies.activity import ActivityControllerDep
 from app.api.dependencies.user import CurrentUserDep
 from app.db.schemas.activity import ActivityCreateRequest, ActivityResponse, ActivityUpdate
 from app.db.schemas.common import ApiResponse
+from app.realtime.connection_manager import realtime_manager
 
 router = APIRouter(tags=["activities"])
 
@@ -15,18 +18,33 @@ router = APIRouter(tags=["activities"])
     response_model=ApiResponse[ActivityResponse],
     status_code=status.HTTP_201_CREATED,
 )
-def create_channel_activity(
+async def create_channel_activity(
     channel_id: UUID,
     payload: ActivityCreateRequest,
     _request: Request,
     current_user: CurrentUserDep,
     controller: ActivityControllerDep,
 ):
-    return controller.create_activity(
-        current_user=current_user,
-        channel_id=channel_id,
-        payload=payload,
+    result = await anyio.to_thread.run_sync(
+        controller.create_activity,
+        current_user,
+        channel_id,
+        payload,
     )
+
+    if result.data:
+        event = {
+            "type": "activity_created",
+            "channel_id": str(channel_id),
+            "workspace_id": str(result.data.workspace_id),
+            "activity": result.data.model_dump(),
+        }
+        try:
+            await realtime_manager.broadcast_to_channel(channel_id, event)
+        except Exception:
+            pass
+
+    return result
 
 
 @router.get(

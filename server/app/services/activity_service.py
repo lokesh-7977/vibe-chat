@@ -14,7 +14,6 @@ from app.db.schemas.common import ApiResponse
 from app.repositories.activity_repository import ActivityRepository
 from app.repositories.channel_repository import ChannelRepository
 from app.repositories.workspace_repository import WorkspaceRepository
-from app.realtime.connection_manager import realtime_manager
 
 
 def _enrich_activity(activity: Activity) -> ActivityResponse:
@@ -80,20 +79,6 @@ class ActivityService:
 
         self.db.refresh(activity)
         enriched = _enrich_activity(activity)
-        # Broadcast only after persistence.
-        event = {
-            "type": "activity_created",
-            "channel_id": str(channel_id),
-            "workspace_id": str(activity.workspace_id),
-            "activity": enriched.model_dump(),
-        }
-        # ActivityService is sync (runs in threadpool); broadcast best-effort.
-        try:
-            import anyio
-
-            anyio.from_thread.run(realtime_manager.broadcast_to_channel, channel_id, event)
-        except Exception:
-            pass
         return ApiResponse(
             success=True,
             message="Activity created successfully",

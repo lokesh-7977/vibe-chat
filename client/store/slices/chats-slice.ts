@@ -190,8 +190,8 @@ async function fetchChats(
   };
 }
 
-const WS_STORAGE_KEY = "vibe-chat-workspace";
-const ROOM_STORAGE_KEY = "vibe-chat-room";
+const WS_STORAGE_KEY = "aura-chat-workspace";
+const ROOM_STORAGE_KEY = "aura-chat-room";
 
 function loadSavedRoomId(): string | null {
   if (typeof window === "undefined") return null;
@@ -328,7 +328,7 @@ export const sendPrivateAiMessage = createAsyncThunk<
       chats: ChatsState;
     };
 
-    const prompt = content.replace(/^@vibe-chat\b[:,-]?\s*/i, "").trim();
+    const prompt = content.replace(/^@aura-chat\b[:,-]?\s*/i, "").trim();
     if (!prompt) return;
 
     const recent = rootState.chats.messagesByRoom[channelId] ?? [];
@@ -605,9 +605,9 @@ const chatsSlice = createSlice({
         state.error = action.error.message ?? "Could not create channel";
       })
       .addCase(sendChatMessage.fulfilled, (state, action) => {
-        state.messagesByRoom[state.selectedRoomId] ??= [];
-        state.messagesByRoom[state.selectedRoomId].push(action.payload);
-        const room = state.rooms.find((r) => r.id === state.selectedRoomId);
+        state.messagesByRoom[action.meta.arg.channelId] ??= [];
+        state.messagesByRoom[action.meta.arg.channelId].push(action.payload);
+        const room = state.rooms.find((r) => r.id === action.meta.arg.channelId);
         if (room) room.time = action.payload.time;
       })
       .addCase(deleteChannelThunk.fulfilled, (state, action) => {
