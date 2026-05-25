@@ -9,7 +9,7 @@ import re
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.ai.services.local_embeddings import HuggingFaceEmbeddingsService
+from app.ai.services.api_embeddings import ApiEmbeddingsService
 from app.ai.services.embeddings_utils import normalize_embedding_dim
 from app.ai.types import RetrievedSource, SourceDocument
 from app.ai.prompts.rag.prompt import build_rag_qa_prompt
@@ -27,7 +27,7 @@ from app.ai.services.youtube_transcript import fetch_youtube_transcript_text
 
 
 class RagService:
-    def __init__(self, db: Session, *, embeddings: HuggingFaceEmbeddingsService, groq: object) -> None:
+    def __init__(self, db: Session, *, embeddings: ApiEmbeddingsService, groq: object) -> None:
         self.db = db
         self.embeddings = embeddings
         self.groq = groq

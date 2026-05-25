@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from app.ai.agents.react import run_react_agent_stream
 from app.ai.services.audio_summary_service import AudioSummaryService
 from app.ai.services.channel_summary_service import ChannelSummaryService
-from app.ai.services.local_embeddings import HuggingFaceEmbeddingsService
+from app.ai.services.api_embeddings import ApiEmbeddingsService
 from app.ai.services.nv_client import NvChatService
 from app.ai.services.rag_service import RagService
 from app.ai.services.streaming_service import StreamingCollector, sse
@@ -97,7 +97,7 @@ async def run_ai_action_workflow(
     async_client = httpx.AsyncClient(timeout=httpx.Timeout(180.0, connect=10.0, read=120.0, write=60.0))
 
     try:
-        embeddings = HuggingFaceEmbeddingsService()
+        embeddings = ApiEmbeddingsService()
         chat = NvChatService(async_client=async_client)
         audio: object = _DisabledAudioService()
 

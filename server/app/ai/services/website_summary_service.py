@@ -10,7 +10,7 @@ from langgraph.graph import END, START, StateGraph
 from pydantic import BaseModel, Field
 
 from app.ai.prompts.base import ChatMessage
-from app.ai.services.local_embeddings import HuggingFaceEmbeddingsService
+from app.ai.services.api_embeddings import ApiEmbeddingsService
 from app.ai.services.web_extractor import fetch_page_extract
 from app.ai.services.summary_cache_keys import normalize_website_url
 from app.repositories.content_summary_repository import ContentSummaryRepository
@@ -33,7 +33,7 @@ class WebsiteSummaryService:
         self,
         groq: object,
         *,
-        embeddings: HuggingFaceEmbeddingsService,
+        embeddings: ApiEmbeddingsService,
         db: Session | None = None,
         workspace_id: UUID | None = None,
     ) -> None:
