@@ -1,4 +1,4 @@
-import axiosInstance, { getAuthHeaders } from "../../services/axios";
+import axiosInstance, { getAuthHeaders, tryRefreshToken } from "../../services/axios";
 import type { AIActionStreamRequest, UUID } from "../../types";
 import { aiActionQueryKeys } from "./query.keys";
 
@@ -34,6 +34,7 @@ export async function streamAiActionBody(
 ) {
   const q = aiActionQueryKeys.stream(channelId);
   const base = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
+  await tryRefreshToken();
   const res = await fetch(`${base}${q.url}`, {
     method: "POST",
     credentials: "include",
@@ -50,6 +51,7 @@ export async function streamAiActionStream(
   payload: AIActionStreamRequest,
 ) {
   const q = aiActionQueryKeys.stream(channelId);
+  await tryRefreshToken();
   const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000"}${q.url}`, {
     method: "POST",
     credentials: "include",

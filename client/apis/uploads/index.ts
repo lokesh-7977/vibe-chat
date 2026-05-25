@@ -1,4 +1,4 @@
-import axiosInstance, { getAuthHeaders } from "../../services/axios";
+import axiosInstance, { getAuthHeaders, tryRefreshToken } from "../../services/axios";
 import type {
   ApiResponse,
   DocumentResponse,
@@ -41,6 +41,7 @@ export async function summarizeImage(key: string, prompt?: string | null) {
 
 export async function streamSummarizeImage(key: string, prompt?: string | null) {
   const q = uploadQueryKeys.imageSummaryStream(key);
+  await tryRefreshToken();
   const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000"}${q.url}`, {
     method: "POST",
     credentials: "include",
@@ -64,6 +65,7 @@ export async function summarizeDocument(key: string, prompt?: string | null) {
 
 export async function streamSummarizeDocument(key: string, prompt?: string | null) {
   const q = uploadQueryKeys.documentSummaryStream(key);
+  await tryRefreshToken();
   const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000"}${q.url}`, {
     method: "POST",
     credentials: "include",
@@ -77,6 +79,7 @@ export async function streamSummarizeDocument(key: string, prompt?: string | nul
 
 export async function streamDocumentQa(key: string, question: string) {
   const q = uploadQueryKeys.documentQaStream(key);
+  await tryRefreshToken();
   const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000"}${q.url}`, {
     method: "POST",
     credentials: "include",

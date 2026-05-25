@@ -13,7 +13,28 @@ import { store } from "../store";
 import { setAuth, clearAuth } from "../store/slices/auth-slice";
 
 const DEFAULT_TIMEOUT_MS = 15_000;
-const AUTH_REFRESH_PATH = "/auth/refresh";
+export const AUTH_REFRESH_PATH = "/auth/refresh";
+
+export async function tryRefreshToken(): Promise<string | null> {
+  try {
+    const res = await axios.post(
+      `${apiBaseUrl}${AUTH_REFRESH_PATH}`,
+      {},
+      { withCredentials: true },
+    );
+    const newToken = res.data?.data?.accessToken as string | undefined;
+    if (newToken) {
+      store.dispatch(setAuth({
+        accessToken: newToken,
+        user: store.getState().auth.user!,
+      }));
+      return newToken;
+    }
+  } catch {
+    // refresh failed
+  }
+  return null;
+}
 
 const apiBaseUrl =
   process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
@@ -76,24 +97,13 @@ instance.interceptors.response.use(
       config._retry = true;
 
       try {
-        const res = await axios.post(
-          `${apiBaseUrl}${AUTH_REFRESH_PATH}`,
-          {},
-          { withCredentials: true },
-        );
-        const newToken = res.data?.data?.accessToken as string | undefined;
+        const newToken = await tryRefreshToken();
         if (newToken) {
-          store.dispatch(setAuth({
-            accessToken: newToken,
-            user: store.getState().auth.user!,
-          }));
           config.headers.Authorization = `Bearer ${newToken}`;
           pendingRequests.forEach((cb) => cb(newToken));
           pendingRequests = [];
           return instance(config);
         }
-      } catch {
-        // refresh failed
       } finally {
         isRefreshing = false;
       }
