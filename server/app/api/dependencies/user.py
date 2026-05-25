@@ -7,19 +7,13 @@ from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.db.models.user import User
 from app.repositories.user_repository import UserRepository
+from app.utils.verify_access_token import verify_access_token
 
 
-def get_current_user(
-    request: Request,
-    db: Session = Depends(get_db),
-):
-    user_id = request.session.get("user_id")
-    if not user_id:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User not authenticated",
-        )
-
+def _resolve_user(
+    user_id: str,
+    db: Session,
+) -> User:
     try:
         user_uuid = PyUUID(user_id)
     except ValueError:
@@ -35,8 +29,30 @@ def get_current_user(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="User not authenticated",
         )
-
     return db_user
+
+
+def get_current_user(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.startswith("Bearer "):
+        token = auth_header.removeprefix("Bearer ")
+        try:
+            user_id = verify_access_token(token)
+            return _resolve_user(user_id, db)
+        except (ValueError, Exception):
+            pass
+
+    user_id = request.session.get("user_id")
+    if not user_id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User not authenticated",
+        )
+
+    return _resolve_user(user_id, db)
 
 
 CurrentUserDep = Annotated[User, Depends(get_current_user)]

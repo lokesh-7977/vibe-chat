@@ -10,6 +10,7 @@ from app.db.schemas.user import UserCreate, UserLogin, UserResponse, UserUpdate
 from app.utils.create_access_token import create_access_token
 from app.utils.create_refresh_token import create_refresh_token
 from app.utils.generate_username import generate_username
+from app.utils.verify_access_token import verify_access_token
 from app.utils.verify_refresh_token import verify_refresh_token
 
 
@@ -180,7 +181,19 @@ class AuthService:
         request.session["refresh_token"] = refresh_token
 
     def _get_authenticated_user(self, request: Request):
-        user_id = request.session.get("user_id")
+        user_id: str | None = None
+
+        auth_header = request.headers.get("Authorization", "")
+        if auth_header.startswith("Bearer "):
+            token = auth_header.removeprefix("Bearer ")
+            try:
+                user_id = verify_access_token(token)
+            except Exception:
+                pass
+
+        if not user_id:
+            user_id = request.session.get("user_id")
+
         if not user_id:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
