@@ -30,6 +30,8 @@ services:
         sync: false
       - key: NVAPI_CHAT_MODEL
         sync: false
+      - key: EMBEDDING_API_KEY
+        sync: false
       - key: R2_ENDPOINT_URL
         sync: false
       - key: R2_ACCESS_KEY_ID

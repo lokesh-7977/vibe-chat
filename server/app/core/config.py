@@ -56,6 +56,10 @@ class Settings(BaseSettings):
     nvapi_api_key: str | None = None
     nvapi_base_url: str = "https://integrate.api.nvidia.com"
     nvapi_chat_model: str = "openai/gpt-oss-20b"
+
+    embedding_api_key: str | None = None
+    embedding_api_url: str | None = None
+    embedding_model: str = "nvidia/nv-embed-qa-4"
     nvapi_translate_model: str = "nvidia/riva-translate-4b-instruct"
     nvapi_translate_fallback_model: str | None = None
     nvapi_vision_model: str = "meta/llama-3.2-11b-vision-instruct"
