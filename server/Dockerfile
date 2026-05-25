@@ -1,4 +1,6 @@
-FROM python:3.11-slim AS builder
+FROM python:3.11-alpine AS builder
+
+RUN apk add --no-cache gcc musl-dev linux-headers libffi-dev openssl-dev
 
 WORKDIR /app
 
@@ -7,7 +9,7 @@ RUN pip install --no-cache-dir --no-compile --root-user-action=ignore -r require
     && find /usr/local -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
 
 
-FROM python:3.11-slim
+FROM python:3.11-alpine
 
 WORKDIR /app
 
